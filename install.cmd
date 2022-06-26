@@ -26,19 +26,17 @@ cinst -y msbuild.communitytasks
 cinst -y msbuild.extensionpack
 cinst -y openssl.light
 
-cinst -y python2
-REM Fix Python PostBuild when build iOS on Windows
-if NOT exist "C:\Python27\python2.7.exe" copy "C:\Python27\python.exe" "C:\Python27\python2.7.exe"
-
 cinst -y jre8
 
 REM Do NOT set JAVA_HOME that cause sdkmanager.bat (require JRE8) to be failed
 REM /INSTALLLEVEL=1: FeatureMain,FeatureEnvironment,FeatureJarFileRunWith (see https://chocolatey.org/packages/adoptopenjdk11openj9)
 cinst -y adoptopenjdk11openj9 --params="/INSTALLLEVEL=1"
-cinst -y nodist
 cinst -y visualstudiocode
 
 choco install visualstudio2022community
+choco install postman
+choco install mongodb-compass
+choco install nodejs-lts
 
 cinst -y rapidee
 cinst -y kdiff3
@@ -47,9 +45,6 @@ cinst -y psexec --ignore-checksums
 cinst -y --allowemptychecksum winrar
 
 call refreshenv.cmd
-call nodist global 12.13
-call nodist npm match
-call npm install --global --production bower gulp-cli npm-quick-run yarn windows-build-tools
 
 call "%~dp0install-android.cmd"
 
