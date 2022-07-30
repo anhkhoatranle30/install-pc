@@ -33,10 +33,10 @@ REM /INSTALLLEVEL=1: FeatureMain,FeatureEnvironment,FeatureJarFileRunWith (see h
 cinst -y adoptopenjdk11openj9 --params="/INSTALLLEVEL=1"
 cinst -y visualstudiocode
 
-choco install visualstudio2022community
-choco install postman
-choco install mongodb-compass
-choco install nodejs-lts
+cinst -y visualstudio2022community
+cinst -y postman
+cinst -y mongodb-compass
+cinst -y nodejs-lts
 
 cinst -y rapidee
 cinst -y kdiff3
