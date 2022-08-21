@@ -35,6 +35,7 @@ cinst -y visualstudiocode
 
 cinst -y visualstudio2022community
 cinst -y postman
+cinst -y mongodb
 cinst -y mongodb-compass
 cinst -y nodejs-lts
 
