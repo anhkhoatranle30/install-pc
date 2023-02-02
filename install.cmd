@@ -38,6 +38,11 @@ cinst -y postman
 cinst -y mongodb
 cinst -y mongodb-compass
 cinst -y nodejs-lts
+cinst -y 7zip
+cinst -y unikey
+cinst -y microsoft-teams
+cinst -y skype
+cinst -y zoom
 
 cinst -y rapidee
 cinst -y kdiff3
