@@ -33,7 +33,7 @@ REM /INSTALLLEVEL=1: FeatureMain,FeatureEnvironment,FeatureJarFileRunWith (see h
 cinst -y adoptopenjdk11openj9 --params="/INSTALLLEVEL=1"
 cinst -y visualstudiocode
 
-cinst -y visualstudio2022community
+cinst -y visualstudio2019community
 cinst -y postman
 cinst -y mongodb
 cinst -y mongodb-compass
@@ -46,6 +46,7 @@ cinst -y zoom
 
 cinst -y rapidee
 cinst -y kdiff3
+cinst -y beyondcompare
 cinst -y psexec --ignore-checksums
 
 cinst -y --allowemptychecksum winrar
