@@ -36,4 +36,4 @@ setx ANDROID_NDK_HOME "%ANDROID_NDK_ROOT%\%ANDROID_NDK_VERSION%" /M
 
 popd
 
-psexec -accepteula -nobanner -i -u "NT AUTHORITY\NETWORK SERVICE" "%ANDROID_HOME%\tools\bin\sdkmanager.bat" tools platform-tools build-tools;30.0.2 platforms;android-29 platforms;android-30
+psexec -accepteula -nobanner -i -u "NT AUTHORITY\NETWORK SERVICE" "%ANDROID_HOME%\tools\bin\sdkmanager.bat" tools platform-tools build-tools;30.0.2 platforms;android-29 platforms;android-30;android-31

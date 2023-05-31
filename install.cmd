@@ -43,6 +43,7 @@ cinst -y unikey
 cinst -y microsoft-teams
 cinst -y skype
 cinst -y zoom
+cinst -y totalcommander
 
 cinst -y rapidee
 cinst -y kdiff3
@@ -50,6 +51,25 @@ cinst -y beyondcompare
 cinst -y psexec --ignore-checksums
 
 cinst -y --allowemptychecksum winrar
+
+REM customized terminal
+cinst -y microsoft-windows-terminal
+winget install oh-my-posh
+winget install XP8K0HKJFRXGCK
+Install-Module -Name Terminal-Icons -Repository PSGallery -Force
+notepad $PROFILE
+$notePath = "C:\noteterminal.txt"
+Set-Content -Path $notePath -Value "Copy this value to $PROFILE oh-my-posh init pwsh --config `"$env:POSH_THEMES_PATH\paradox.omp.json`" | Invoke-Expression"
+notepad $notePath
+Invoke-WebRequest -Uri "https://github.com/ryanoasis/nerd-fonts/releases/download/v2.1.0/FiraCode.zip" -OutFile "FiraCode.zip"
+Expand-Archive -Path "FiraCode.zip" -DestinationPath "FiraCode" -Force
+Copy-Item -Path "FiraCode\*.ttf" -Destination "C:\Windows\Fonts" -Force
+New-Item -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\Open Windows Terminal here' -Force | Out-Null
+Set-Location -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\Open Windows Terminal here'
+New-Item -Name 'command' -Force | Out-Null
+Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\Open Windows Terminal here\command' -Name '(default)' -Value 'wt -d "%V"'
+REM New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\Open Windows Terminal here' -Name 'Icon' -Value 'C:\Path\to\TerminalIcon.ico' -PropertyType String
+
 
 call refreshenv.cmd
 
