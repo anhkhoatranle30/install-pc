@@ -44,11 +44,21 @@ cinst -y microsoft-teams
 cinst -y skype
 cinst -y zoom
 cinst -y totalcommander
+cinst -y lightshot
 
 cinst -y rapidee
 cinst -y kdiff3
-cinst -y beyondcompare
 cinst -y psexec --ignore-checksums
+
+REM beyond compare
+cinst -y beyondcompare --version=4.4.6.27483
+REM code active beyond compare
+#rm "$env:appdata\Scooter Software\Beyond Compare 4\*.*" -Force -Confirm
+rm "$env:appdata\Scooter Software\Beyond Compare 4\BCState.xml" -Force -Confirm
+rm "$env:appdata\Scooter Software\Beyond Compare 4\BCState.xml.bak" -Force -Confirm
+#rm "$env:appdata\Scooter Software\Beyond Compare 4\BCSessions.xml" -Force -Confirm
+#rm "$env:appdata\Scooter Software\Beyond Compare 4\BCSessions.xml.bak" -Force -Confirm
+reg delete "HKCU\Software\Scooter Software\Beyond Compare 4" /v "CacheID" /f
 
 cinst -y --allowemptychecksum winrar
 
@@ -59,17 +69,16 @@ winget install XP8K0HKJFRXGCK
 Install-Module -Name Terminal-Icons -Repository PSGallery -Force
 notepad $PROFILE
 $notePath = "C:\noteterminal.txt"
-Set-Content -Path $notePath -Value "Copy this value to $PROFILE oh-my-posh init pwsh --config `"$env:POSH_THEMES_PATH\paradox.omp.json`" | Invoke-Expression"
+Set-Content -Path $notePath -Value "Copy this value to `$PROFILE `: oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH/jandedobbeleer.omp.json" | Invoke-Expression"
 notepad $notePath
-Invoke-WebRequest -Uri "https://github.com/ryanoasis/nerd-fonts/releases/download/v2.1.0/FiraCode.zip" -OutFile "FiraCode.zip"
-Expand-Archive -Path "FiraCode.zip" -DestinationPath "FiraCode" -Force
-Copy-Item -Path "FiraCode\*.ttf" -Destination "C:\Windows\Fonts" -Force
-New-Item -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\Open Windows Terminal here' -Force | Out-Null
-Set-Location -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\Open Windows Terminal here'
-New-Item -Name 'command' -Force | Out-Null
-Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\Open Windows Terminal here\command' -Name '(default)' -Value 'wt -d "%V"'
-REM New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\Open Windows Terminal here' -Name 'Icon' -Value 'C:\Path\to\TerminalIcon.ico' -PropertyType String
-
+REM NerdFont
+git clone https://github.com/ryanoasis/nerd-fonts.git
+cd nerd-fonts
+.\install.ps1
+REM powerline font 
+git clone https://github.com/powerline/fonts.git
+cd fonts
+.\install.ps1
 
 call refreshenv.cmd
 
