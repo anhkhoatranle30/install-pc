@@ -37,7 +37,7 @@ cinst -y visualstudio2019community
 cinst -y postman
 cinst -y mongodb
 cinst -y mongodb-compass
-cinst -y nodejs-lts
+cinst -y nodejs --version 16.20.0
 cinst -y 7zip
 cinst -y unikey
 cinst -y microsoft-teams
