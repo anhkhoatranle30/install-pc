@@ -11,7 +11,7 @@ IF NOT %ERRORLEVEL% EQU 0 (
 @call powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = \"tls12, tls11, tls\";iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))" && SET PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin
 
 :: Install Unity using Hub
-cinst -y unity-hub --ignore-checksums
+choco install -y unity-hub --ignore-checksums
 
 pushd "%~dp0"
 
@@ -26,6 +26,6 @@ for /f "tokens=*" %%v in (unity.version) do (
 	rem start /wait unityhub://%%v
 )
 
-cinst -y visualstudio2017-workload-managedgame
+choco install -y visualstudio2017-workload-managedgame
 
 popd

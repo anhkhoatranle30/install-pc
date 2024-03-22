@@ -9,49 +9,49 @@ IF NOT %ERRORLEVEL% EQU 0 (
 
 @call powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = \"tls12, tls11, tls\";iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))" && SET PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin
 
-cinst -y googlechrome
-cinst -y notepad2-mod
-cinst -y notepadplusplus.install
+choco install -y googlechrome
+choco install -y notepad2-mod
+choco install -y notepadplusplus.install
 
-cinst -y git.install
-cinst -y git-credential-winstore
-rem cinst -y poshgit
-cinst -y tortoisegit
-cinst -y git-lfs
-cinst -y curl
-rem cinst -y curl --verison 7.52.1 && choco pin add -n=curl
+choco install -y git.install
+choco install -y git-credential-winstore
+rem choco install -y poshgit
+choco install -y tortoisegit
+choco install -y git-lfs
+choco install -y curl
+rem choco install -y curl --verison 7.52.1 && choco pin add -n=curl
 
-cinst -y dotnet4.6.1
-cinst -y msbuild.communitytasks
-cinst -y msbuild.extensionpack
-cinst -y openssl.light
+choco install -y dotnet4.6.1
+choco install -y msbuild.communitytasks
+choco install -y msbuild.extensionpack
+choco install -y openssl.light
 
-cinst -y jre8
+choco install -y jre8
 
 REM Do NOT set JAVA_HOME that cause sdkmanager.bat (require JRE8) to be failed
 REM /INSTALLLEVEL=1: FeatureMain,FeatureEnvironment,FeatureJarFileRunWith (see https://chocolatey.org/packages/adoptopenjdk11openj9)
-cinst -y adoptopenjdk11openj9 --params="/INSTALLLEVEL=1"
-cinst -y visualstudiocode
+choco install -y adoptopenjdk11openj9 --params="/INSTALLLEVEL=1"
+choco install -y visualstudiocode
 
-cinst -y visualstudio2019community
-cinst -y postman
-cinst -y mongodb
-cinst -y mongodb-compass
-cinst -y nodejs --version 16.20.0
-cinst -y 7zip
-cinst -y unikey
-cinst -y microsoft-teams
-cinst -y skype
-cinst -y zoom
-cinst -y totalcommander
-cinst -y lightshot
+choco install -y visualstudio2019community
+choco install -y postman
+choco install -y mongodb
+choco install -y mongodb-compass
+choco install -y nodejs --version 16.20.0
+choco install -y 7zip
+choco install -y unikey
+choco install -y microsoft-teams
+choco install -y skype
+choco install -y zoom
+choco install -y totalcommander
+choco install -y lightshot
 
-cinst -y rapidee
-cinst -y kdiff3
-cinst -y psexec --ignore-checksums
+choco install -y rapidee
+choco install -y kdiff3
+choco install -y psexec --ignore-checksums
 
 REM beyond compare
-cinst -y beyondcompare --version=4.4.6.27483
+choco install -y beyondcompare --version=4.4.6.27483
 REM code active beyond compare
 #rm "$env:appdata\Scooter Software\Beyond Compare 4\*.*" -Force -Confirm
 rm "$env:appdata\Scooter Software\Beyond Compare 4\BCState.xml" -Force -Confirm
@@ -60,27 +60,25 @@ rm "$env:appdata\Scooter Software\Beyond Compare 4\BCState.xml.bak" -Force -Conf
 #rm "$env:appdata\Scooter Software\Beyond Compare 4\BCSessions.xml.bak" -Force -Confirm
 reg delete "HKCU\Software\Scooter Software\Beyond Compare 4" /v "CacheID" /f
 
-cinst -y --allowemptychecksum winrar
+choco install -y --allowemptychecksum winrar
 
-REM customized terminal
-cinst -y microsoft-windows-terminal
+@REM customized terminal
+choco install -y microsoft-windows-terminal
 winget install oh-my-posh
 winget install XP8K0HKJFRXGCK
 Install-Module -Name Terminal-Icons -Repository PSGallery -Force
+ECHO Copy this value to `$PROFILE `: oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH/jandedobbeleer.omp.json" | Invoke-Expression"
 notepad $PROFILE
-$notePath = "C:\noteterminal.txt"
-Set-Content -Path $notePath -Value "Copy this value to `$PROFILE `: oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH/jandedobbeleer.omp.json" | Invoke-Expression"
-notepad $notePath
-REM NerdFont
+@REM NerdFont
 git clone https://github.com/ryanoasis/nerd-fonts.git
 cd nerd-fonts
 .\install.ps1
-REM powerline font 
+@REM powerline font 
 git clone https://github.com/powerline/fonts.git
 cd fonts
 .\install.ps1
 
-call refreshenv.cmd
+@REM call refreshenv.cmd
 
 call "%~dp0install-android.cmd"
 

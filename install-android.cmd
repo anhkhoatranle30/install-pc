@@ -16,7 +16,7 @@ SET ANDROID_NDK_ROOT=C:\Android\android-ndk
 
 mkdir "%ANDROID_HOME%" 1>nul 2>&1
 
-cinst -y android-sdk
+choco install -y android-sdk
 call refreshenv.cmd
 
 REM Grant Full Controll permission for `NETWORK SERVICE` account that needs for Unity to install Android tools.
