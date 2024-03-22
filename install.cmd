@@ -45,6 +45,7 @@ choco install -y skype
 choco install -y zoom
 choco install -y totalcommander
 choco install -y lightshot
+choco install -y treesizefree
 
 choco install -y rapidee
 choco install -y kdiff3
@@ -64,19 +65,24 @@ choco install -y --allowemptychecksum winrar
 
 @REM customized terminal
 choco install -y microsoft-windows-terminal
-winget install oh-my-posh
-winget install XP8K0HKJFRXGCK
+winget install --accept-package-agreements oh-my-posh
+winget install --accept-package-agreements XP8K0HKJFRXGCK
+Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
 Install-Module -Name Terminal-Icons -Repository PSGallery -Force
-ECHO Copy this value to `$PROFILE `: oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH/jandedobbeleer.omp.json" | Invoke-Expression"
+@REM Copy this value to `$PROFILE `: oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH/jandedobbeleer.omp.json" | Invoke-Expression
+ECHO "Read code to copy value to $PROFILE file"
 notepad $PROFILE
-@REM NerdFont
-git clone https://github.com/ryanoasis/nerd-fonts.git
-cd nerd-fonts
-.\install.ps1
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Unrestricted -Force
+@REM @REM NerdFont
+@REM git clone https://github.com/ryanoasis/nerd-fonts.git
+@REM cd nerd-fonts
+@REM .\install.ps1
 @REM powerline font 
 git clone https://github.com/powerline/fonts.git
 cd fonts
 .\install.ps1
+cd ..
+rm -rf fonts
 
 @REM call refreshenv.cmd
 
