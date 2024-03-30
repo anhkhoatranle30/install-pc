@@ -70,19 +70,10 @@ winget install --accept-package-agreements XP8K0HKJFRXGCK
 Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
 Install-Module -Name Terminal-Icons -Repository PSGallery -Force
 @REM Copy this value to `$PROFILE `: oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH/jandedobbeleer.omp.json" | Invoke-Expression
-ECHO "Read code to copy value to $PROFILE file"
+ECHO "Read code (above line) to copy value to $PROFILE file"
 notepad $PROFILE
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Unrestricted -Force
-@REM @REM NerdFont
-@REM git clone https://github.com/ryanoasis/nerd-fonts.git
-@REM cd nerd-fonts
-@REM .\install.ps1
-@REM powerline font 
-git clone https://github.com/powerline/fonts.git
-cd fonts
-.\install.ps1
-cd ..
-rm -rf fonts
+ECHO "Download CaskaydiaCove Nerd Font -> Install -> Set terminal font to it"
 
 @REM call refreshenv.cmd
 
