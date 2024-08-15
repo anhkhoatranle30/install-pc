@@ -74,6 +74,7 @@ ECHO "Read code (above line) to copy value to $PROFILE file"
 notepad $PROFILE
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Unrestricted -Force
 ECHO "Download CaskaydiaCove Nerd Font -> Install -> Set terminal font to it"
+ECHO "Download CommitMono font for Visual Studio at link: https://commitmono.com/?font_name=KhoaTran"
 
 @REM call refreshenv.cmd
 
