@@ -76,6 +76,9 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Unrestricted -Force
 ECHO "Download CaskaydiaCove Nerd Font -> Install -> Set terminal font to it"
 ECHO "Download Fira Code -> Install -> Set Visual Studio font to it"
 
+@REM Intellisense in Terminal
+Install-Module -Name PSReadLine -force
+
 @REM call refreshenv.cmd
 
 call "%~dp0install-android.cmd"
