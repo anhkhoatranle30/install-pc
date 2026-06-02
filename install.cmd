@@ -48,20 +48,36 @@ choco install -y lightshot
 choco install -y treesizefree
 
 choco install -y rapidee
-choco install -y kdiff3
 choco install -y psexec --ignore-checksums
 
-REM beyond compare
-choco install -y beyondcompare --version=4.4.6.27483
-REM code active beyond compare
-#rm "$env:appdata\Scooter Software\Beyond Compare 4\*.*" -Force -Confirm
-rm "$env:appdata\Scooter Software\Beyond Compare 4\BCState.xml" -Force -Confirm
-rm "$env:appdata\Scooter Software\Beyond Compare 4\BCState.xml.bak" -Force -Confirm
-#rm "$env:appdata\Scooter Software\Beyond Compare 4\BCSessions.xml" -Force -Confirm
-#rm "$env:appdata\Scooter Software\Beyond Compare 4\BCSessions.xml.bak" -Force -Confirm
-reg delete "HKCU\Software\Scooter Software\Beyond Compare 4" /v "CacheID" /f
-
 choco install -y --allowemptychecksum winrar
+
+choco install -y kdiff3
+
+@REM Install WinMerge
+winget install -e --id WinMerge.WinMerge --accept-source-agreements --accept-package-agreements
+
+set "WINMERGE_PATH=C:\Program Files\WinMerge\WinMergeU.exe"
+if not exist "%WINMERGE_PATH%" (
+    set "WINMERGE_PATH=C:\Program Files (x86)\WinMerge\WinMergeU.exe"
+)
+if not exist "%WINMERGE_PATH%" (
+    echo [LOI] Khong tim thay WinMergeU.exe. Vui long kiem tra duong dan.
+    pause
+    exit /b 1
+)
+echo Tim thay WinMerge tai: %WINMERGE_PATH%
+
+git config --global diff.tool winmerge
+git config --global difftool.winmerge.cmd "\"%WINMERGE_PATH%\" -e -u -dl \"Base\" -dr \"Mine\" \"$LOCAL\" \"$REMOTE\""
+git config --global difftool.prompt false
+
+git config --global merge.tool winmerge
+git config --global mergetool.winmerge.cmd "\"%WINMERGE_PATH%\" -e -u -dl \"Local\" -dm \"Base\" -dr \"Remote\" \"$LOCAL\" \"$BASE\" \"$REMOTE\" -o \"$MERGED\""
+git config --global mergetool.winmerge.trustExitCode true
+git config --global mergetool.prompt false
+@REM End installing WinMerge
+
 
 @REM customized terminal
 choco install -y microsoft-windows-terminal
