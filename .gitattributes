@@ -1,0 +1,7 @@
+# Script chạy trong Linux/WSL PHẢI có line ending LF.
+# Nếu git checkout ra CRLF, bash báo: bad interpreter: /bin/bash^M
+*.sh text eol=lf
+
+# Script Windows giữ CRLF
+*.ps1 text eol=crlf
+*.cmd text eol=crlf

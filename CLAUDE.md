@@ -51,6 +51,49 @@ Chỉ check bằng pwsh 7 là **không đủ** — pwsh mặc định UTF-8 nên
 **escape của carriage return**. Viết `` `reload-path` `` trong comment sẽ cắt đôi dòng
 và phần đuôi thành lệnh. **Không dùng backtick trong comment** ở khối đó.
 
+## Sinh file bằng heredoc: KHÔNG dùng `\` xuống dòng
+
+`wsl-setup-shell.sh` sinh `~/.zshrc` bằng heredoc `<<ZSHRC`. Trong đó dấu `\`
+cuối dòng **nuốt mất dòng mới**, nối hai dòng thành một:
+
+```sh
+[ -f x ] && \        →   [ -f x ] && \    source y    # zsh: command not found
+    source y
+```
+
+Viết mọi lệnh trên **một dòng** trong khối heredoc. Cùng họ với bẫy backtick ở
+`$PROFILE` bên trên.
+
+## `wsl --` nuốt backslash và có hai kiểu encoding
+
+**Backslash:** `wsl -- lệnh "C:\duong\dan"` làm đối số tới nơi thành
+`C:duongdan`. Đừng truyền đường dẫn Windows qua `wsl --`; đẩy nội dung qua
+**stdin** thay vì qua đường dẫn:
+
+```powershell
+$OutputEncoding = [Text.UTF8Encoding]::new($false)
+$text | & wsl -d $Distro -- sh -c 'tr -d "\r" > /tmp/script.sh'
+```
+
+**Encoding — hai loại khác nhau:**
+
+| Lệnh | Encoding |
+|---|---|
+| `wsl --list`, `--version` (thông báo của chính wsl.exe) | UTF-16LE |
+| `wsl -- <lệnh linux>` (stdout của lệnh Linux) | UTF-8 |
+
+Áp nhầm UTF-16 cho loại thứ hai thì chuỗi ra **chữ Hán**; áp nhầm UTF-8 cho
+loại thứ nhất thì có **NUL xen giữa** và mọi `-match` đều trượt.
+
+**File `.sh` phải là LF.** CRLF làm bash báo `bad interpreter: /bin/bash^M`.
+`.gitattributes` đã ép `*.sh text eol=lf`.
+
+## Bash inline nhiều lớp quoting thì mất biến
+
+Chuỗi lệnh đi qua PowerShell → `wsl.exe` → bash bị mất biến vòng lặp (`$c`
+thành rỗng). Đưa logic vào file `.sh` rồi gọi file đó, đừng viết bash inline
+trong PowerShell.
+
 ## Registry: `HKCR:\*` là wildcard
 
 Key "mọi loại file" tên đúng là `*`. `New-Item -Path 'HKCR:\*\shell\...'` làm provider
