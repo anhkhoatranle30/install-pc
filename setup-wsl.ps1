@@ -1,4 +1,4 @@
-<#
+﻿<#
     WSL2 + Ubuntu 22.04.
 
     Enables the two Windows features WSL needs, then installs the distro
@@ -7,9 +7,12 @@
     user does that part.
 #>
 [CmdletBinding()]
-param([string]$Distro = 'Ubuntu-22.04')
+param([string]$Distro)   # để trống thì lấy từ config.ps1
 
 $ErrorActionPreference = 'Continue'
+
+. (Join-Path $PSScriptRoot 'config.ps1')
+if (-not $Distro) { $Distro = $Cfg.WslDistro }
 
 function Write-Step { param($t) Write-Host "`n=== $t ===" -ForegroundColor Cyan }
 function Write-Ok   { param($t) Write-Host "  [ ok ] $t" -ForegroundColor Green }

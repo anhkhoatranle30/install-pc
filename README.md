@@ -12,6 +12,7 @@ Xong thì **đóng và mở lại Windows Terminal** (và nên reboot 1 lần ch
 
 | File | Việc |
 |---|---|
+| **`config.ps1`** | **Sở thích — font, theme, màu, port. Sửa file này là đủ.** |
 | `install.cmd` | Bootstrap: check admin → gọi `install.ps1` bằng `pwsh` nếu có, không thì `powershell` |
 | `install.ps1` | Cài toàn bộ phần mềm (winget, fallback chocolatey) |
 | `setup-terminal.ps1` | Ghi `$PROFILE`, `settings.json` của Windows Terminal / VS Code, context menu, Clink |
@@ -20,7 +21,15 @@ Xong thì **đóng và mở lại Windows Terminal** (và nên reboot 1 lần ch
 | `setup-git-diff.ps1` | Beyond Compare làm diff/merge tool cho git + TortoiseGit |
 | `setup-quil.ps1` | Cài Quil (terminal multiplexer sống qua reboot) |
 | `check-drivers.ps1` | Detect mainboard/BIOS/GPU → popup nhắc update driver |
+| `check-font.ps1` | Kiểm tra font có đủ glyph tiếng Việt + powerline không |
 | `local.settings.ps1` | **gitignored** — ZeroTier network ID, đường dẫn license |
+
+Hai file cấu hình, đừng lẫn:
+
+| | `config.ps1` | `local.settings.ps1` |
+|---|---|---|
+| Chứa | sở thích (font, theme, màu, port) | bí mật (key, network ID) |
+| Commit? | **có** | **không** — gitignored |
 
 > Bản cũ nhét lệnh PowerShell (`Install-Module`, `Set-ExecutionPolicy`, `$PROFILE`…) thẳng vào file `.cmd`.
 > `cmd.exe` không hiểu nên phần đó **chưa bao giờ chạy** — đó là lý do terminal chưa đẹp và không có intellisense.
@@ -95,13 +104,35 @@ Nerd Font patched thường **rụng hết Latin Extended**, nên tiếng Việt
 
 ## Đổi theme / font
 
-Ba lớp khác nhau, đừng lẫn:
+**Sửa `config.ps1`, rồi chạy `.\setup-terminal.ps1`.** Hết. Không cần đụng script nào khác.
 
-| Muốn đổi | Sửa ở đâu |
-|---|---|
-| **Font + màu nền** terminal | `$Global:TerminalFont` trong `install.ps1`, rồi chạy `.\setup-terminal.ps1` |
-| **Theme của prompt** (oh-my-posh) | `$PoshTheme` trong `$PROFILE`, sửa trực tiếp là ăn ngay |
-| Font VS Code | `$Global:EditorFont` trong `install.ps1` |
+```powershell
+$Cfg = @{
+    TerminalFont     = 'JetBrainsMono NF'
+    TerminalFontSize = 11
+    FontFallback     = 'Cascadia Code, Consolas'
+    PoshTheme        = 'jandedobbeleer'
+    ColorScheme      = 'One Half Dark'
+    Opacity          = 92
+    ...
+}
+```
+
+`config.ps1` điều khiển luôn cả port RDP, distro WSL, thư mục cài Quil — mỗi script
+đọc từ đó, và tham số dòng lệnh (nếu truyền) sẽ ghi đè để thử tạm:
+
+```powershell
+.\setup-terminal.ps1 -PoshTheme atomic      # thử 1 lần, không sửa config
+.\setup-power-remote.ps1 -RdpPort 13389
+```
+
+Đổi font xong nhớ kiểm tra glyph tiếng Việt:
+
+```powershell
+.\check-font.ps1                  # font đang dùng + các font quen thuộc
+.\check-font.ps1 -All             # mọi font trên máy
+.\check-font.ps1 -Name 'Hack NF'
+```
 
 Xem 122 theme có sẵn:
 
@@ -115,15 +146,11 @@ Xem trước hình: <https://ohmyposh.dev/docs/themes>. Đổi tạm để thử
 oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH\atomic.omp.json" | Invoke-Expression
 ```
 
-Ưng rồi thì sửa dòng `$PoshTheme = '...'` trong `$PROFILE` cho vĩnh viễn.
+Ưng rồi thì ghi vào `config.ps1` cho vĩnh viễn.
 
-> Sửa font/colorScheme bằng GUI của Windows Terminal cũng được, **nhưng** lần chạy
-> `setup-terminal.ps1` tiếp theo sẽ ghi đè lại. Muốn giữ thì sửa trong `install.ps1`.
-> Riêng `$PoshTheme` nằm trong block marker của `$PROFILE` nên cũng bị ghi đè —
-> đổi lâu dài thì sửa tham số `-PoshTheme` mặc định trong `setup-terminal.ps1`.
-
-Nếu đổi sang Nerd Font khác, **kiểm tra glyph tiếng Việt trước** (xem bảng bên dưới) —
-phần lớn bản patched bị rụng.
+> Sửa font/màu bằng GUI của Windows Terminal cũng được, **nhưng** lần chạy
+> `setup-terminal.ps1` tiếp theo sẽ ghi đè lại từ `config.ps1`. Muốn giữ lâu dài
+> thì sửa trong `config.ps1`.
 
 ## Secrets
 

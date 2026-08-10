@@ -14,14 +14,21 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$TerminalFont = $(if ($Global:TerminalFont) { $Global:TerminalFont } else { 'JetBrainsMono NF' }),
-    [string]$EditorFont   = $(if ($Global:EditorFont)   { $Global:EditorFont   } else { 'JetBrainsMono NF' }),
-    # Backs up the Nerd Font for glyphs it does not carry - notably Vietnamese.
-    [string]$FontFallback = 'Cascadia Code, Consolas',
-    [string]$PoshTheme    = 'jandedobbeleer'
+    # Để trống thì lấy từ config.ps1. Truyền vào đây chỉ để thử tạm.
+    [string]$TerminalFont,
+    [string]$EditorFont,
+    [string]$FontFallback,
+    [string]$PoshTheme
 )
 
 $ErrorActionPreference = 'Continue'
+
+# Sở thích nằm ở config.ps1 - xem file đó, không sửa ở đây.
+. (Join-Path $PSScriptRoot 'config.ps1')
+if (-not $TerminalFont) { $TerminalFont = $Cfg.TerminalFont }
+if (-not $EditorFont)   { $EditorFont   = $Cfg.EditorFont }
+if (-not $FontFallback) { $FontFallback = $Cfg.FontFallback }
+if (-not $PoshTheme)    { $PoshTheme    = $Cfg.PoshTheme }
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 
 function Write-Step { param($t) Write-Host "`n=== $t ===" -ForegroundColor Cyan }
@@ -258,46 +265,48 @@ foreach ($wt in $wtPaths) {
     $wtFound = $true
     try {
         Backup-File $wt
-        $cfg = Read-JsonFile $wt
-        if (-not $cfg) { Write-Warn "skip $wt (unreadable)"; continue }
+        $wtJson = Read-JsonFile $wt
+        if (-not $wtJson) { Write-Warn "skip $wt (unreadable)"; continue }
 
-        if (-not $cfg.profiles) { Set-JsonProperty $cfg 'profiles' ([pscustomobject]@{}) }
-        if (-not $cfg.profiles.defaults) { Set-JsonProperty $cfg.profiles 'defaults' ([pscustomobject]@{}) }
+        if (-not $wtJson.profiles) { Set-JsonProperty $wtJson 'profiles' ([pscustomobject]@{}) }
+        if (-not $wtJson.profiles.defaults) { Set-JsonProperty $wtJson.profiles 'defaults' ([pscustomobject]@{}) }
 
-        $d = $cfg.profiles.defaults
+        $d = $wtJson.profiles.defaults
         # Comma-separated fallback chain (Windows Terminal 1.20+). Nerd Font
         # patched builds carry the powerline glyphs but routinely drop Latin
         # Extended, so Vietnamese (ô ư ạ ẻ) renders as tofu unless a font that
         # actually has those glyphs backs it up.
         Set-JsonProperty $d 'font' ([pscustomobject]@{
             face = "$TerminalFont, $FontFallback"
-            size = 11
+            size = $Cfg.TerminalFontSize
         })
-        Set-JsonProperty $d 'colorScheme'   'One Half Dark'
-        Set-JsonProperty $d 'useAcrylic'    $true
-        Set-JsonProperty $d 'opacity'       92
-        Set-JsonProperty $d 'padding'       '10'
-        Set-JsonProperty $d 'cursorShape'   'filledBox'
-        Set-JsonProperty $d 'scrollbarState' 'hidden'
+        Set-JsonProperty $d 'colorScheme'    $Cfg.ColorScheme
+        Set-JsonProperty $d 'useAcrylic'     $Cfg.UseAcrylic
+        Set-JsonProperty $d 'opacity'        $Cfg.Opacity
+        Set-JsonProperty $d 'padding'        $Cfg.Padding
+        Set-JsonProperty $d 'cursorShape'    $Cfg.CursorShape
+        Set-JsonProperty $d 'scrollbarState' $Cfg.ScrollbarState
 
         # Default to PowerShell 7 if its profile exists - oh-my-posh looks best there.
         # WT only materialises that profile the first time it starts AFTER pwsh
         # is installed, so on a fresh run the list may not have it yet.
-        $pwshProfile = $cfg.profiles.list | Where-Object {
-            $_.source -eq 'Windows.Terminal.PowershellCore' -or
-            $_.commandline -match 'pwsh' -or
-            $_.name -eq 'PowerShell'
-        } | Select-Object -First 1
-        if ($pwshProfile) {
-            Set-JsonProperty $cfg 'defaultProfile' $pwshProfile.guid
-            Write-Ok 'default profile -> PowerShell 7'
-        } else {
-            Write-Warn 'PowerShell 7 profile not in Windows Terminal yet - open WT once, then re-run setup-terminal.ps1'
+        if ($Cfg.DefaultToPwsh) {
+            $pwshProfile = $wtJson.profiles.list | Where-Object {
+                $_.source -eq 'Windows.Terminal.PowershellCore' -or
+                $_.commandline -match 'pwsh' -or
+                $_.name -eq 'PowerShell'
+            } | Select-Object -First 1
+            if ($pwshProfile) {
+                Set-JsonProperty $wtJson 'defaultProfile' $pwshProfile.guid
+                Write-Ok 'default profile -> PowerShell 7'
+            } else {
+                Write-Warn 'PowerShell 7 profile not in Windows Terminal yet - open WT once, then re-run setup-terminal.ps1'
+            }
         }
 
-        Set-JsonProperty $cfg 'copyOnSelect' $true
+        Set-JsonProperty $wtJson 'copyOnSelect' $Cfg.CopyOnSelect
 
-        $cfg | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $wt -Encoding UTF8 -Force
+        $wtJson | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $wt -Encoding UTF8 -Force
         Write-Ok "Windows Terminal font -> $TerminalFont"
     } catch { Write-Err "Windows Terminal: $($_.Exception.Message)" }
 }
@@ -313,9 +322,10 @@ Write-Step 'VS Code settings'
 # by splicing text in after the opening brace. Existing keys are never touched.
 $codeSettings = "$env:APPDATA\Code\User\settings.json"
 $codeWanted = [ordered]@{
-    'editor.fontFamily'                  = "'$EditorFont', 'Cascadia Code', Consolas, monospace"
-    'editor.fontLigatures'               = $true
-    'terminal.integrated.fontFamily'     = "'$TerminalFont'"
+    'editor.fontFamily'                  = "'$EditorFont', $($Cfg.FontFallback), monospace"
+    'editor.fontLigatures'               = $Cfg.VsCodeLigatures
+    'editor.fontSize'                    = $Cfg.EditorFontSize
+    'terminal.integrated.fontFamily'     = "'$TerminalFont', $($Cfg.FontFallback)"
 }
 try {
     $dir = Split-Path -Parent $codeSettings

@@ -1,4 +1,4 @@
-<#
+﻿<#
     Keep the PC awake + let Remote Desktop in.
 
     Needed together: an RDP box that falls asleep is an RDP box you cannot
@@ -16,13 +16,18 @@
 #Requires -RunAsAdministrator
 [CmdletBinding()]
 param(
-    [ValidateRange(1, 65535)][int]$RdpPort = 3389,
+    # Để trống thì lấy từ config.ps1.
+    [ValidateRange(0, 65535)][int]$RdpPort = 0,
     [switch]$SkipPower,
     [switch]$SkipRdp,
-    [switch]$AllowScreenOff   # let the display still switch off (default: display stays on too)
+    [switch]$AllowScreenOff   # let the display still switch off
 )
 
 $ErrorActionPreference = 'Continue'
+
+. (Join-Path $PSScriptRoot 'config.ps1')
+if ($RdpPort -eq 0)     { $RdpPort = $Cfg.RdpPort }
+if (-not $AllowScreenOff) { $AllowScreenOff = [bool]$Cfg.AllowScreenOff }
 
 function Write-Step { param($t) Write-Host "`n=== $t ===" -ForegroundColor Cyan }
 function Write-Ok   { param($t) Write-Host "  [ ok ] $t" -ForegroundColor Green }

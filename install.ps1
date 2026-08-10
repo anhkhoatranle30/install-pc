@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
     New-PC setup.
     Entry point is install.cmd (bootstrap + admin check).
@@ -37,14 +37,9 @@ if (Test-Path $localSettings) {
 }
 
 # ------------------------------------------------------------------
-# Fonts used everywhere. Change here, not in 5 different places.
+# Sở thích (font, theme, màu, port...) nằm ở config.ps1 - sửa file đó.
 # ------------------------------------------------------------------
-# JetBrainsMono NF is the only patched Nerd Font of the usual suspects that
-# carries BOTH the powerline glyphs oh-my-posh needs AND full Vietnamese.
-# Verified per-glyph: CaskaydiaCove NF has no Latin Extended at all, and
-# FiraCode NF has "o" but not "u-horn" / "a-dot-below".
-$Global:TerminalFont = 'JetBrainsMono NF'
-$Global:EditorFont   = 'JetBrainsMono NF'
+. (Join-Path $root 'config.ps1')
 
 # ------------------------------------------------------------------
 # Helpers
@@ -241,12 +236,11 @@ if (-not $SkipApps) {
     # clink-maintained (1.x), NOT 'clink' - that package is the abandoned
     # 0.4.9 build from 2015 and has no inline autosuggest.
     Install-App 'Clink (cmd.exe autocomplete)'                      -ChocoId 'clink-maintained'
-    Install-App "$Global:TerminalFont"                              -ChocoId 'cascadia-code-nerd-font'
-    Install-App "$Global:EditorFont"                                -ChocoId 'firacodenf'
-    # Nerd Font patched builds of Cascadia/Fira drop Latin Extended, so
-    # Vietnamese renders as tofu. JetBrains Mono carries the full set and is
-    # used as the fallback face in Windows Terminal.
-    Install-App 'JetBrainsMono Nerd Font' -WingetId 'DEVCOM.JetBrainsMonoNerdFont'
+
+    # Danh sách font lấy từ config.ps1 - đổi font thì sửa ở đó.
+    foreach ($f in $Cfg.FontPackages) {
+        Install-App $f.Name -WingetId $f.Winget -ChocoId $f.Choco
+    }
 }
 
 # ---------------------------------------------------------------

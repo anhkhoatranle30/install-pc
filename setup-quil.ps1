@@ -18,12 +18,15 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$InstallDir = "$env:LOCALAPPDATA\Quil",
+    [string]$InstallDir,   # để trống thì lấy từ config.ps1
     [switch]$Force
 )
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference    = 'SilentlyContinue'
+
+. (Join-Path $PSScriptRoot 'config.ps1')
+if (-not $InstallDir) { $InstallDir = $Cfg.QuilInstallDir }
 
 function Write-Step { param($t) Write-Host "`n=== $t ===" -ForegroundColor Cyan }
 function Write-Ok   { param($t) Write-Host "  [ ok ] $t" -ForegroundColor Green }
