@@ -55,7 +55,10 @@ $Cfg = @{
     # Xem hình trước: https://ohmyposh.dev/docs/themes
     # Thử nhanh không cần sửa file:
     #     oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH\atomic.omp.json" | Invoke-Expression
-    PoshTheme      = 'jandedobbeleer'
+    # robbyrussell: tối giản, 1 dòng, không dùng glyph powerline. Theme nặng
+    # (nhiều segment + nhiều mã màu) làm renderer của quil rớt escape sequence,
+    # để lộ rác kiểu "106m" ra màn hình.
+    PoshTheme      = 'robbyrussell'
 
     # ---------------------------------------------------------------
     #  MÀU & GIAO DIỆN TERMINAL
