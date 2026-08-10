@@ -171,7 +171,25 @@ Write-Step "Remote Desktop (port $RdpPort)"
         }
 
     Write-Host ''
-    Write-Warn 'Firewall rules above are Domain+Private only, on purpose.'
-    Write-Warn 'Do NOT port-forward RDP to the internet - reach it over the ZeroTier IP instead.'
-    Write-Warn 'Your Windows account needs a password; blank-password accounts cannot use RDP.'
+    # Nói chính xác phạm vi: group "Remote Desktop" dựng sẵn của Windows là
+    # profile=Any (mở trên cả Public). Chỉ rule TỰ TẠO cho port khác 3389 mới
+    # bị giới hạn Domain+Private.
+    if ($RdpPort -eq 3389) {
+        Write-Warn 'Group "Remote Desktop" dựng sẵn mở trên MỌI profile, kể cả Public.'
+    } else {
+        Write-Warn "Rule tự tạo cho port $RdpPort chỉ mở Domain+Private."
+    }
+    Write-Warn 'Đừng port-forward RDP ra internet - vào qua IP ZeroTier.'
+
+    # Đây là nguyên nhân số 1 làm RDP không vào được dù mọi thứ khác đã đúng:
+    # LimitBlankPasswordUse=1 (mặc định) chặn logon QUA MẠNG với account
+    # password rỗng, mà RDP chính là logon qua mạng.
+    $me = Get-LocalUser -Name $env:USERNAME -ErrorAction SilentlyContinue
+    if ($me -and -not $me.PasswordRequired) {
+        Write-Err "Account '$($me.Name)' có PasswordRequired=False -> RDP sẽ KHÔNG vào được."
+        Write-Host '       Đặt password rồi thử lại:  net user ' -NoNewline -ForegroundColor Yellow
+        Write-Host "$($me.Name) *" -ForegroundColor Yellow
+    } else {
+        Write-Warn 'Account phải có password; account password rỗng không RDP được.'
+    }
 }
