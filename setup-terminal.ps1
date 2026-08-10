@@ -1,4 +1,4 @@
-<#
+﻿<#
     Terminal / editor configuration.
 
     Everything the old install.cmd asked you to paste into notepad by hand
@@ -116,12 +116,33 @@ $beginMarker
 `$OutputEncoding           = [Text.UTF8Encoding]::new(`$false)
 
 # --- Oh My Posh prompt -------------------------------------------------
+# Đổi theme: sửa `$PoshTheme bên dưới. Xem 122 theme có sẵn bằng:
+#     Get-ChildItem `$env:POSH_THEMES_PATH -Filter *.omp.json | % { `$_.BaseName }
+# Xem trước tất cả: https://ohmyposh.dev/docs/themes
+`$PoshTheme = '$PoshTheme'
+
+# Cài qua winget/Store thì oh-my-posh là gói MSIX, themes nằm trong thư mục
+# có kèm số version (…\WindowsApps\ohmyposh.cli_30.6.2.0_x64__…\themes), nên
+# phải dò chứ không hardcode được - đường dẫn đổi sau mỗi lần update.
 `$poshThemes = `$env:POSH_THEMES_PATH
-if (-not `$poshThemes) { `$poshThemes = "`$env:LOCALAPPDATA\Programs\oh-my-posh\themes" }
+if (-not (`$poshThemes -and (Test-Path `$poshThemes))) {
+    `$poshThemes = @(
+        "`$env:LOCALAPPDATA\Programs\oh-my-posh\themes"
+        "`$env:LOCALAPPDATA\oh-my-posh\themes"
+    ) | Where-Object { Test-Path `$_ } | Select-Object -First 1
+}
+if (-not `$poshThemes) {
+    `$poshThemes = Get-ChildItem 'C:\Program Files\WindowsApps' -Filter 'ohmyposh.cli_*' -Directory -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending |
+        ForEach-Object { Join-Path `$_.FullName 'themes' } |
+        Where-Object { Test-Path `$_ } | Select-Object -First 1
+}
+if (`$poshThemes) { `$env:POSH_THEMES_PATH = `$poshThemes }
+
 if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
-    `$themeFile = Join-Path `$poshThemes '$PoshTheme.omp.json'
-    if (Test-Path `$themeFile) { oh-my-posh init pwsh --config `$themeFile | Invoke-Expression }
-    else                       { oh-my-posh init pwsh | Invoke-Expression }
+    `$themeFile = if (`$poshThemes) { Join-Path `$poshThemes "`$PoshTheme.omp.json" }
+    if (`$themeFile -and (Test-Path `$themeFile)) { oh-my-posh init pwsh --config `$themeFile | Invoke-Expression }
+    else                                          { oh-my-posh init pwsh | Invoke-Expression }
 }
 
 # --- Icons in ls / dir -------------------------------------------------

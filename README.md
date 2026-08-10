@@ -1,4 +1,4 @@
-# install-pc
+﻿# install-pc
 
 Setup script cho PC Windows mới.
 
@@ -17,7 +17,10 @@ Xong thì **đóng và mở lại Windows Terminal** (và nên reboot 1 lần ch
 | `setup-terminal.ps1` | Ghi `$PROFILE`, `settings.json` của Windows Terminal / VS Code, context menu, Clink |
 | `setup-wsl.ps1` | Bật Windows feature + cài Ubuntu 22.04 |
 | `setup-power-remote.ps1` | Tắt sleep + bật Remote Desktop + firewall |
+| `setup-git-diff.ps1` | Beyond Compare làm diff/merge tool cho git + TortoiseGit |
+| `setup-quil.ps1` | Cài Quil (terminal multiplexer sống qua reboot) |
 | `check-drivers.ps1` | Detect mainboard/BIOS/GPU → popup nhắc update driver |
+| `local.settings.ps1` | **gitignored** — ZeroTier network ID, đường dẫn license |
 
 > Bản cũ nhét lệnh PowerShell (`Install-Module`, `Set-ExecutionPolicy`, `$PROFILE`…) thẳng vào file `.cmd`.
 > `cmd.exe` không hiểu nên phần đó **chưa bao giờ chạy** — đó là lý do terminal chưa đẹp và không có intellisense.
@@ -89,6 +92,60 @@ Nerd Font patched thường **rụng hết Latin Extended**, nên tiếng Việt
 
 → dùng `JetBrainsMono NF`, kèm fallback chain `"JetBrainsMono NF, Cascadia Code, Consolas"`
 (Windows Terminal 1.20+). `$PROFILE` cũng set UTF-8 cho console.
+
+## Đổi theme / font
+
+Ba lớp khác nhau, đừng lẫn:
+
+| Muốn đổi | Sửa ở đâu |
+|---|---|
+| **Font + màu nền** terminal | `$Global:TerminalFont` trong `install.ps1`, rồi chạy `.\setup-terminal.ps1` |
+| **Theme của prompt** (oh-my-posh) | `$PoshTheme` trong `$PROFILE`, sửa trực tiếp là ăn ngay |
+| Font VS Code | `$Global:EditorFont` trong `install.ps1` |
+
+Xem 122 theme có sẵn:
+
+```powershell
+Get-ChildItem $env:POSH_THEMES_PATH -Filter *.omp.json | ForEach-Object { $_.BaseName }
+```
+
+Xem trước hình: <https://ohmyposh.dev/docs/themes>. Đổi tạm để thử trong phiên hiện tại:
+
+```powershell
+oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH\atomic.omp.json" | Invoke-Expression
+```
+
+Ưng rồi thì sửa dòng `$PoshTheme = '...'` trong `$PROFILE` cho vĩnh viễn.
+
+> Sửa font/colorScheme bằng GUI của Windows Terminal cũng được, **nhưng** lần chạy
+> `setup-terminal.ps1` tiếp theo sẽ ghi đè lại. Muốn giữ thì sửa trong `install.ps1`.
+> Riêng `$PoshTheme` nằm trong block marker của `$PROFILE` nên cũng bị ghi đè —
+> đổi lâu dài thì sửa tham số `-PoshTheme` mặc định trong `setup-terminal.ps1`.
+
+Nếu đổi sang Nerd Font khác, **kiểm tra glyph tiếng Việt trước** (xem bảng bên dưới) —
+phần lớn bản patched bị rụng.
+
+## Secrets
+
+Key và network ID **không bao giờ commit**. Chép template rồi điền:
+
+```powershell
+Copy-Item local.settings.example.ps1 local.settings.ps1
+```
+
+`local.settings.ps1` nằm trong `.gitignore`. `install.ps1` tự dot-source nếu thấy.
+Với Beyond Compare, biến trỏ **đường dẫn tới file license**, không phải nội dung key —
+để file đó ngoài repo (OneDrive/USB).
+
+## Encoding
+
+File `.ps1` có tiếng Việt **phải lưu UTF-8 kèm BOM**. Windows PowerShell 5.1 đọc `.ps1`
+theo ANSI, không BOM thì chữ có dấu vỡ thành byte rác và **script không parse được**.
+Máy mới chưa có pwsh 7 sẽ dính đúng lỗi này. Kiểm tra:
+
+```powershell
+powershell.exe -NoProfile -Command "Get-ChildItem *.ps1 | ForEach-Object { `$e=`$null; [void][System.Management.Automation.Language.Parser]::ParseFile(`$_.FullName,[ref]`$null,[ref]`$e); if(`$e){ `"FAIL `$(`$_.Name)`" } }"
+```
 
 ## Power & Remote Desktop
 

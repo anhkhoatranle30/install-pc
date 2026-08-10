@@ -1,0 +1,14 @@
+# Máy-cụ-thể / bí mật - KHÔNG BAO GIỜ commit.
+# Chép local.settings.example.ps1 thành local.settings.ps1 rồi điền vào đó.
+local.settings.ps1
+
+# License / key files
+*.lic
+BCLicense
+*Key.txt
+
+# Backup do script sinh ra
+*.bak-*
+
+# Log
+*.log

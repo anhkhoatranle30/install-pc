@@ -24,6 +24,19 @@ $ProgressPreference    = 'SilentlyContinue'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # ------------------------------------------------------------------
+# Machine-specific values (ZeroTier network id, licence file paths, git
+# identity) live in local.settings.ps1, which is gitignored. Never put them
+# in this file - it is committed. See local.settings.example.ps1.
+# ------------------------------------------------------------------
+$ZeroTierNetworkId = ''; $BeyondCompareLicenseFile = ''
+$GitUserName = '';       $GitUserEmail = ''
+$localSettings = Join-Path $root 'local.settings.ps1'
+if (Test-Path $localSettings) {
+    . $localSettings
+    Write-Host "  loaded $localSettings" -ForegroundColor DarkGray
+}
+
+# ------------------------------------------------------------------
 # Fonts used everywhere. Change here, not in 5 different places.
 # ------------------------------------------------------------------
 # JetBrainsMono NF is the only patched Nerd Font of the usual suspects that
@@ -170,6 +183,8 @@ if (-not $SkipApps -and -not $OnlyTerminal) {
     Install-App 'TortoiseGit'    -WingetId 'TortoiseGit.TortoiseGit' -ChocoId 'tortoisegit'
     Install-App 'WinMerge'       -WingetId 'WinMerge.WinMerge'      -ChocoId 'winmerge'
     Install-App 'KDiff3'         -WingetId 'KDE.KDiff3'             -ChocoId 'kdiff3'
+    # Licence goes in local.settings.ps1 (gitignored), never here.
+    Install-App 'Beyond Compare 5' -WingetId 'ScooterSoftware.BeyondCompare.5' -ChocoId 'beyondcompare'
 
     # ---------------------------------------------------------------
     Write-Step 'Dev runtimes & CLI'
@@ -238,6 +253,52 @@ if (-not $SkipApps) {
 if (-not $SkipApps -and -not $SkipWsl -and -not $OnlyTerminal) { & "$root\setup-wsl.ps1" }
 
 if (-not $SkipTerminal) { & "$root\setup-terminal.ps1" }
+
+# ---------------------------------------------------------------
+if (-not $SkipApps -and -not $OnlyTerminal) {
+    & "$root\setup-quil.ps1"
+    & "$root\setup-git-diff.ps1"
+
+    Write-Step 'Machine-specific setup'
+
+    if ($GitUserName -and $GitUserEmail) {
+        & git config --global user.name  $GitUserName
+        & git config --global user.email $GitUserEmail
+        Write-Ok "git identity: $GitUserName <$GitUserEmail>"
+    } else {
+        Write-Warn 'git identity not set - fill GitUserName/GitUserEmail in local.settings.ps1'
+    }
+
+    # ZeroTier: joining is idempotent, and the node still has to be authorised
+    # in the web console before it gets an IP.
+    if ($ZeroTierNetworkId) {
+        $zt = "$env:ProgramFiles (x86)\ZeroTier\One\zerotier-cli.bat"
+        if (-not (Test-Path $zt)) { $zt = "$env:ProgramData\ZeroTier\One\zerotier-cli.bat" }
+        if (Test-Path $zt) {
+            & $zt join $ZeroTierNetworkId
+            Write-Ok "ZeroTier joined $ZeroTierNetworkId - now authorise this node at my.zerotier.com"
+        } else {
+            Write-Warn 'zerotier-cli not found - join manually from the tray icon'
+        }
+    } else {
+        Write-Warn 'ZeroTier network not joined - set ZeroTierNetworkId in local.settings.ps1'
+    }
+
+    # Beyond Compare licence: copy the file the user already owns into place.
+    # Scooter's documented silent-deployment path.
+    if ($BeyondCompareLicenseFile) {
+        if (Test-Path $BeyondCompareLicenseFile) {
+            $bcDir = "$env:APPDATA\Scooter Software\Beyond Compare 5"
+            New-Item -ItemType Directory -Path $bcDir -Force | Out-Null
+            Copy-Item $BeyondCompareLicenseFile (Join-Path $bcDir 'BCLicense') -Force
+            Write-Ok 'Beyond Compare licence installed'
+        } else {
+            Write-Err "licence file not found: $BeyondCompareLicenseFile"
+        }
+    } else {
+        Write-Warn 'Beyond Compare licence not applied - set BeyondCompareLicenseFile in local.settings.ps1'
+    }
+}
 
 # ---------------------------------------------------------------
 if (-not $OnlyTerminal -and -not $SkipPowerRemote) { & "$root\setup-power-remote.ps1" -RdpPort $RdpPort }
