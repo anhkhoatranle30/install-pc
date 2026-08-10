@@ -26,16 +26,16 @@ $Cfg = @{
     # Đã đo sẵn:  JetBrainsMono NF  -> đủ tiếng Việt + powerline  ✔
     #             CaskaydiaCove NF  -> KHÔNG có ký tự tiếng Việt nào
     #             FiraCode NF       -> chỉ có 'ô', thiếu 'ư' 'ạ' 'ẻ'
-    TerminalFont   = 'JetBrainsMono NF'
+    # CaskaydiaCove NF không có ký tự tiếng Việt nào - FontFallback bên dưới
+    # gánh phần đó (Windows Terminal 1.20+ và VS Code đều fallback theo glyph).
+    TerminalFont   = 'CaskaydiaCove NF'
     TerminalFontSize = 11
 
     # Font dự phòng cho glyph mà font chính không có (Windows Terminal 1.20+).
     # Cứ để Cascadia Code - nó có đủ tiếng Việt.
     FontFallback   = 'Cascadia Code, Consolas'
 
-    # Editor không cần powerline (chỉ prompt trong terminal mới cần), nên ở đây
-    # dùng được font thường. Cascadia Code có đủ 563 ký tự Latin Extended.
-    EditorFont     = 'Cascadia Code'
+    EditorFont     = 'CaskaydiaCove NF'
     EditorFontSize = 16
 
     # Package sẽ cài để có mấy font trên. Đổi font ở trên thì thêm package

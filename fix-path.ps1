@@ -61,7 +61,15 @@ $user = @($rawUser -split ';' | Where-Object { $_ })
 function Get-Norm { param([string]$p) $p.Trim().TrimEnd('\').ToLowerInvariant() }
 $sysNorm = @($sys | ForEach-Object { Get-Norm $_ })
 
+# Những thư mục bin hay bị setx cắt mất mà lại rất cần:
+#   WindowsApps  -> app execution alias: winget, pwsh, oh-my-posh
+#   .local\bin   -> Claude Code CLI (claude.exe) và mấy installer kiểu Unix
+# Chỉ thêm nếu thư mục tồn tại thật (trừ WindowsApps luôn thêm).
 $windowsApps = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps'
+$mustHave = @(
+    $windowsApps
+    Join-Path $env:USERPROFILE '.local\bin'
+) | Where-Object { $_ -eq $windowsApps -or (Test-Path $_) }
 
 $kept = @(); $seen = @{}
 $dropDup = @(); $dropSys = @(); $dropGone = @()
@@ -79,11 +87,11 @@ foreach ($p in $user) {
     $kept += $p
 }
 
-# WindowsApps là nơi Windows để app execution alias (winget, pwsh, oh-my-posh...).
-# Mất nó là hàng loạt lệnh "not recognized". Đặt lên đầu.
-if (@($kept | ForEach-Object { Get-Norm $_ }) -notcontains (Get-Norm $windowsApps)) {
-    $kept = @($windowsApps) + $kept
-    Write-Warn 'WindowsApps bị thiếu -> thêm lại (đây là thứ làm lệnh "not recognized")'
+foreach ($need in $mustHave) {
+    if (@($kept | ForEach-Object { Get-Norm $_ }) -notcontains (Get-Norm $need)) {
+        $kept = @($need) + $kept
+        Write-Warn "thiếu $need -> thêm lại (đây là thứ làm lệnh `"not recognized`")"
+    }
 }
 
 $newPath = $kept -join ';'
