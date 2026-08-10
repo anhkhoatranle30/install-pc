@@ -22,16 +22,17 @@ $ZeroTierNetworkId = ''
 # ------------------------------------------------------------------
 # Beyond Compare 5
 # ------------------------------------------------------------------
-# ĐƯỜNG DẪN tới file license đã lưu, KHÔNG phải nội dung key.
-# Lấy file này bằng cách: mở Beyond Compare đã activate ->
-#   Help -> Enter Key -> Save As...  (hoặc copy sẵn từ máy cũ)
-#
-# Đặt file ở ngoài repo (USB, OneDrive, thư mục riêng), ví dụ:
+# CÁCH 1 (an toàn hơn): trỏ ĐƯỜNG DẪN tới file license đã lưu.
+# Lấy file: mở Beyond Compare đã activate -> Help -> Enter Key -> Save As...
+# Đặt file ngoài repo (USB, OneDrive), ví dụ:
 #   $BeyondCompareLicenseFile = "$env:USERPROFILE\OneDrive\keys\BCLicense"
-#
-# Đừng paste nội dung key thẳng vào biến - file này tuy gitignored nhưng
-# trỏ đường dẫn vẫn an toàn hơn là nhúng key vào script.
 $BeyondCompareLicenseFile = ''
+
+# CÁCH 2: dán thẳng nội dung key vào đây. File này gitignored nên không lên
+# git, nhưng nó nằm nguyên văn trên đĩa - đừng chụp màn hình hay share file.
+# Dán nguyên khối, kể cả dòng "--- BEGIN LICENSE KEY ---" nếu có.
+$BeyondCompareLicenseText = @'
+'@
 
 # ------------------------------------------------------------------
 # Git

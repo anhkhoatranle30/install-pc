@@ -30,6 +30,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 # ------------------------------------------------------------------
 $ZeroTierNetworkId = ''; $BeyondCompareLicenseFile = ''
 $GitUserName = '';       $GitUserEmail = ''
+$BeyondCompareLicenseText = ''
 $localSettings = Join-Path $root 'local.settings.ps1'
 if (Test-Path $localSettings) {
     . $localSettings
@@ -278,19 +279,22 @@ if (-not $SkipApps -and -not $OnlyTerminal) {
         Write-Warn 'ZeroTier network not joined - set ZeroTierNetworkId in local.settings.ps1'
     }
 
-    # Beyond Compare licence: copy the file the user already owns into place.
-    # Scooter's documented silent-deployment path.
-    if ($BeyondCompareLicenseFile) {
-        if (Test-Path $BeyondCompareLicenseFile) {
-            $bcDir = "$env:APPDATA\Scooter Software\Beyond Compare 5"
-            New-Item -ItemType Directory -Path $bcDir -Force | Out-Null
-            Copy-Item $BeyondCompareLicenseFile (Join-Path $bcDir 'BCLicense') -Force
-            Write-Ok 'Beyond Compare licence installed'
-        } else {
-            Write-Err "licence file not found: $BeyondCompareLicenseFile"
-        }
+    # Beyond Compare licence: đặt file licence người dùng đã có vào đúng chỗ
+    # (đường dẫn silent-deploy Scooter công bố). Nhận cả 2 cách khai báo.
+    $bcDir     = "$env:APPDATA\Scooter Software\Beyond Compare 5"
+    $bcTarget  = Join-Path $bcDir 'BCLicense'
+    if ($BeyondCompareLicenseFile -and (Test-Path $BeyondCompareLicenseFile)) {
+        New-Item -ItemType Directory -Path $bcDir -Force | Out-Null
+        Copy-Item $BeyondCompareLicenseFile $bcTarget -Force
+        Write-Ok 'Beyond Compare licence installed (từ file)'
+    } elseif ($BeyondCompareLicenseFile) {
+        Write-Err "licence file not found: $BeyondCompareLicenseFile"
+    } elseif ($BeyondCompareLicenseText -and $BeyondCompareLicenseText.Trim()) {
+        New-Item -ItemType Directory -Path $bcDir -Force | Out-Null
+        Set-Content -LiteralPath $bcTarget -Value $BeyondCompareLicenseText.Trim() -Encoding ASCII -Force
+        Write-Ok 'Beyond Compare licence installed (từ text)'
     } else {
-        Write-Warn 'Beyond Compare licence not applied - set BeyondCompareLicenseFile in local.settings.ps1'
+        Write-Warn 'Beyond Compare licence not applied - điền vào local.settings.ps1'
     }
 }
 
