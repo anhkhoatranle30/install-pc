@@ -33,8 +33,10 @@ $Cfg = @{
     # Cứ để Cascadia Code - nó có đủ tiếng Việt.
     FontFallback   = 'Cascadia Code, Consolas'
 
-    EditorFont     = 'JetBrainsMono NF'
-    EditorFontSize = 14
+    # Editor không cần powerline (chỉ prompt trong terminal mới cần), nên ở đây
+    # dùng được font thường. Cascadia Code có đủ 563 ký tự Latin Extended.
+    EditorFont     = 'Cascadia Code'
+    EditorFontSize = 16
 
     # Package sẽ cài để có mấy font trên. Đổi font ở trên thì thêm package
     # tương ứng vào đây, nếu không font sẽ không tồn tại trên máy.

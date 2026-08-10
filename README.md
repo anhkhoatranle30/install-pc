@@ -22,6 +22,7 @@ Xong thì **đóng và mở lại Windows Terminal** (và nên reboot 1 lần ch
 | `setup-quil.ps1` | Cài Quil (terminal multiplexer sống qua reboot) |
 | `check-drivers.ps1` | Detect mainboard/BIOS/GPU → popup nhắc update driver |
 | `check-font.ps1` | Kiểm tra font có đủ glyph tiếng Việt + powerline không |
+| `fix-path.ps1` | Dọn user PATH bị `setx` làm hỏng |
 | `local.settings.ps1` | **gitignored** — ZeroTier network ID, đường dẫn license |
 
 Hai file cấu hình, đừng lẫn:
@@ -173,6 +174,48 @@ Máy mới chưa có pwsh 7 sẽ dính đúng lỗi này. Kiểm tra:
 ```powershell
 powershell.exe -NoProfile -Command "Get-ChildItem *.ps1 | ForEach-Object { `$e=`$null; [void][System.Management.Automation.Language.Parser]::ParseFile(`$_.FullName,[ref]`$null,[ref]`$e); if(`$e){ `"FAIL `$(`$_.Name)`" } }"
 ```
+
+## "oh-my-posh is not recognized" (và winget, pwsh...)
+
+File có thật trên đĩa mà lệnh vẫn báo không tìm thấy → **user PATH bị hỏng**.
+
+Thủ phạm là `setx PATH "%PATH%;..."`. `%PATH%` là PATH **đã gộp** system+user, nên
+setx chép nguyên system PATH vào user PATH rồi **cắt cụt ở 1024 ký tự** — thường nuốt
+mất `%LOCALAPPDATA%\Microsoft\WindowsApps`, nơi Windows để app execution alias của
+winget / pwsh / oh-my-posh.
+
+```powershell
+.\fix-path.ps1           # xem trước, không ghi gì
+.\fix-path.ps1 -Apply    # ghi thật, có backup
+.\fix-path.ps1 -Restore "C:\...\userpath-<timestamp>.txt"
+```
+
+Bỏ mục nào user PATH có mà system PATH cũng có (không mất gì), bỏ mục lặp, bỏ mục
+trỏ tới thư mục không tồn tại, và bảo đảm có WindowsApps.
+
+Đừng bao giờ dùng `setx` để thêm PATH. Dùng:
+
+```powershell
+$p = [Environment]::GetEnvironmentVariable('Path','User')
+[Environment]::SetEnvironmentVariable('Path', "$p;C:\thu\muc\moi", 'User')
+```
+
+## Cascadia Code ≠ CaskaydiaCove
+
+Hai font khác nhau, tên gần giống. Nerd Fonts đổi "Cascadia" → "Caskaydia" khi patch
+để tránh trademark:
+
+| | tổng glyph | Latin Extended (U+0100–U+1EFF) | powerline |
+|---|---|---|---|
+| **Cascadia Code** (Microsoft gốc) | 1483 | **563** | ❌ |
+| **CaskaydiaCove NF** (Nerd Fonts patch) | 3804 | **0** | ✅ |
+
+Bản patched nhiều glyph hơn vì thêm cả nghìn icon, nhưng **rụng sạch** Latin Extended —
+nơi chứa `ư ạ ẻ`. Nên "Cascadia Code hiển thị tiếng Việt tốt" là đúng, mà
+"CaskaydiaCove không có tiếng Việt" cũng đúng.
+
+Trong repo này: terminal dùng JetBrainsMono NF (có cả hai), editor dùng Cascadia Code
+(editor không cần powerline).
 
 ## Power & Remote Desktop
 

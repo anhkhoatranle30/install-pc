@@ -18,7 +18,10 @@ param(
     [string]$TerminalFont,
     [string]$EditorFont,
     [string]$FontFallback,
-    [string]$PoshTheme
+    [string]$PoshTheme,
+    # Mặc định KHÔNG đè key đã có trong settings.json của VS Code (có thể là
+    # bạn tự chỉnh). Bật cờ này để ép chúng khớp config.ps1.
+    [switch]$UpdateVsCode
 )
 
 $ErrorActionPreference = 'Continue'
@@ -321,11 +324,29 @@ Write-Step 'VS Code settings'
 # ConvertTo-Json would silently destroy. So: only ADD keys that are missing,
 # by splicing text in after the opening brace. Existing keys are never touched.
 $codeSettings = "$env:APPDATA\Code\User\settings.json"
+# Ghép font chính + fallback, bỏ trùng - nếu font chính đã nằm sẵn trong
+# danh sách fallback thì không liệt kê hai lần.
+function Join-FontList {
+    param([string]$Primary, [string]$Fallback, [string[]]$Tail)
+    $names = @($Primary) + ($Fallback -split ',') + $Tail |
+             ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    ($names | Select-Object -Unique) -join ', '
+}
+
 $codeWanted = [ordered]@{
-    'editor.fontFamily'                  = "'$EditorFont', $($Cfg.FontFallback), monospace"
+    'editor.fontFamily'                  = Join-FontList $EditorFont   $Cfg.FontFallback @('monospace')
     'editor.fontLigatures'               = $Cfg.VsCodeLigatures
     'editor.fontSize'                    = $Cfg.EditorFontSize
-    'terminal.integrated.fontFamily'     = "'$TerminalFont', $($Cfg.FontFallback)"
+    'terminal.integrated.fontFamily'     = Join-FontList $TerminalFont $Cfg.FontFallback
+}
+
+function ConvertTo-JsonValue {
+    # ConvertTo-Json mã hoá dấu nháy đơn thành ' - hợp lệ nhưng xấu và khó
+    # đọc trong settings.json. Tự encode cho gọn.
+    param($v)
+    if ($v -is [bool])   { return $v.ToString().ToLower() }
+    if ($v -is [int] -or $v -is [double]) { return "$v" }
+    return '"' + ($v -replace '\\', '\\\\' -replace '"', '\"') + '"'
 }
 try {
     $dir = Split-Path -Parent $codeSettings
@@ -337,25 +358,47 @@ try {
             Set-Content -LiteralPath $codeSettings -Encoding UTF8 -Force
         Write-Ok "VS Code settings created (font $EditorFont)"
     } else {
-        $raw = Get-Content -LiteralPath $codeSettings -Raw -Encoding UTF8
-        [void](Read-JsonFile $codeSettings)   # throws -> we abort before touching anything
+        $raw    = Get-Content -LiteralPath $codeSettings -Raw -Encoding UTF8
+        $parsed = Read-JsonFile $codeSettings   # throws -> we abort before touching anything
 
-        $missing = $codeWanted.Keys | Where-Object { -not (Test-JsonHasKey $raw $_) }
-        $kept    = $codeWanted.Keys | Where-Object { Test-JsonHasKey $raw $_ }
+        $missing = @($codeWanted.Keys | Where-Object { -not (Test-JsonHasKey $raw $_) })
+        $present = @($codeWanted.Keys | Where-Object { Test-JsonHasKey $raw $_ })
+        # Khác giá trị config = hoặc bạn tự sửa, hoặc là giá trị cũ script ghi
+        # từ lần trước. Không phân biệt được nên KHÔNG tự đè - chỉ báo ra.
+        $stale   = @($present | Where-Object { "$($parsed.$_)" -ne "$($codeWanted[$_])" })
 
+        $new = $raw
         if ($missing) {
-            Backup-File $codeSettings
             $insert = ($missing | ForEach-Object {
-                '  "' + $_ + '": ' + (ConvertTo-Json $codeWanted[$_] -Compress) + ','
+                '  "' + $_ + '": ' + (ConvertTo-JsonValue $codeWanted[$_]) + ','
             }) -join "`r`n"
-            $i = $raw.IndexOf('{')
-            $new = $raw.Substring(0, $i + 1) + "`r`n" + $insert + $raw.Substring($i + 1)
-            Set-Content -LiteralPath $codeSettings -Value $new -Encoding UTF8 -Force
-            Write-Ok "VS Code: added $($missing -join ', ')"
-        } else {
-            Write-Ok 'VS Code: nothing to add'
+            $i = $new.IndexOf('{')
+            $new = $new.Substring(0, $i + 1) + "`r`n" + $insert + $new.Substring($i + 1)
         }
-        foreach ($k in $kept) { Write-Host "       kept your own '$k'" -ForegroundColor DarkGray }
+        if ($stale -and $UpdateVsCode) {
+            foreach ($k in $stale) {
+                $pattern = '("' + [regex]::Escape($k) + '"\s*:\s*)("(?:[^"\\]|\\.)*"|true|false|-?[\d.]+)'
+                $repl    = '${1}' + (ConvertTo-JsonValue $codeWanted[$k]).Replace('$', '$$')
+                $new     = [regex]::Replace($new, $pattern, $repl, 1)
+            }
+        }
+
+        if ($new -ne $raw) {
+            Backup-File $codeSettings
+            Set-Content -LiteralPath $codeSettings -Value $new -Encoding UTF8 -Force
+        }
+
+        if ($missing) { Write-Ok "VS Code: added $($missing -join ', ')" }
+        if ($stale -and $UpdateVsCode) { Write-Ok "VS Code: updated $($stale -join ', ')" }
+        if (-not $missing -and -not ($stale -and $UpdateVsCode)) { Write-Ok 'VS Code: nothing to add' }
+
+        foreach ($k in $present) {
+            if ($stale -contains $k -and -not $UpdateVsCode) {
+                Write-Warn "VS Code '$k' = '$($parsed.$k)' (config muốn '$($codeWanted[$k])') - dùng -UpdateVsCode để đổi"
+            } elseif ($stale -notcontains $k) {
+                Write-Host "       '$k' đã khớp config" -ForegroundColor DarkGray
+            }
+        }
     }
 } catch {
     Write-Err "VS Code settings LEFT UNTOUCHED: $($_.Exception.Message)"
