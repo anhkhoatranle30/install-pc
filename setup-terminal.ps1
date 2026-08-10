@@ -1,0 +1,405 @@
+<#
+    Terminal / editor configuration.
+
+    Everything the old install.cmd asked you to paste into notepad by hand
+    is written programmatically here:
+      * PowerShell $PROFILE   (oh-my-posh prompt, Terminal-Icons, PSReadLine intellisense)
+      * Windows Terminal settings.json  (font, default profile, opacity)
+      * VS Code settings.json (font + ligatures)
+      * cmd.exe autocomplete via Clink
+      * "Open with Code" right-click context menu
+
+    Safe to re-run. Existing files are backed up as *.bak-<timestamp> and
+    our block is replaced between the BEGIN/END markers instead of appended.
+#>
+[CmdletBinding()]
+param(
+    [string]$TerminalFont = $(if ($Global:TerminalFont) { $Global:TerminalFont } else { 'JetBrainsMono NF' }),
+    [string]$EditorFont   = $(if ($Global:EditorFont)   { $Global:EditorFont   } else { 'JetBrainsMono NF' }),
+    # Backs up the Nerd Font for glyphs it does not carry - notably Vietnamese.
+    [string]$FontFallback = 'Cascadia Code, Consolas',
+    [string]$PoshTheme    = 'jandedobbeleer'
+)
+
+$ErrorActionPreference = 'Continue'
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+
+function Write-Step { param($t) Write-Host "`n=== $t ===" -ForegroundColor Cyan }
+function Write-Ok   { param($t) Write-Host "  [ ok ] $t" -ForegroundColor Green }
+function Write-Warn { param($t) Write-Host "  [warn] $t" -ForegroundColor Yellow }
+function Write-Err  { param($t) Write-Host "  [fail] $t" -ForegroundColor Red }
+
+function Backup-File {
+    param([string]$Path)
+    if (Test-Path -LiteralPath $Path) {
+        Copy-Item -LiteralPath $Path -Destination "$Path.bak-$stamp" -Force
+        Write-Host "       backup: $(Split-Path -Leaf $Path).bak-$stamp" -ForegroundColor DarkGray
+    }
+}
+
+function Read-JsonFile {
+<#
+    Reads a .json/.jsonc file, tolerating // and /* */ comments and trailing
+    commas (VS Code and Windows Terminal both accept those; ConvertFrom-Json
+    does not).
+
+    Returns $null when the file is absent or empty - meaning "safe to create".
+    THROWS when the file exists but cannot be parsed, so callers abort instead
+    of overwriting a config they failed to understand.
+#>
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    $raw = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+    if ([string]::IsNullOrWhiteSpace($raw)) { return $null }
+
+    $raw = [regex]::Replace($raw, '/\*[\s\S]*?\*/', '')                  # block comments
+    $raw = ($raw -split "`n" | Where-Object { $_.TrimStart() -notmatch '^//' }) -join "`n"  # whole-line // (leaves "http://" alone)
+    $raw = [regex]::Replace($raw, ',(\s*[}\]])', '$1')                   # trailing commas
+
+    try { return $raw | ConvertFrom-Json }
+    catch { throw "cannot parse $Path : $($_.Exception.Message)" }
+}
+
+function Test-JsonHasKey {
+    <# Top-level key lookup on raw JSON text, so we never have to reserialize. #>
+    param([string]$Text, [string]$Key)
+    return $Text -match ('(?m)^\s*"' + [regex]::Escape($Key) + '"\s*:')
+}
+
+function Set-JsonProperty {
+    <# Sets $Object.$Name = $Value on a PSCustomObject, adding the member if missing. #>
+    param($Object, [string]$Name, $Value)
+    if ($Object.PSObject.Properties.Name -contains $Name) { $Object.$Name = $Value }
+    else { $Object | Add-Member -NotePropertyName $Name -NotePropertyValue $Value }
+}
+
+# ==================================================================
+Write-Step 'PowerShell modules'
+# ==================================================================
+try {
+    Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy RemoteSigned -Force -ErrorAction Stop
+    Set-ExecutionPolicy -Scope CurrentUser  -ExecutionPolicy RemoteSigned -Force -ErrorAction Stop
+    Write-Ok 'ExecutionPolicy = RemoteSigned'
+} catch { Write-Warn "ExecutionPolicy: $($_.Exception.Message)" }
+
+try {
+    if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope AllUsers | Out-Null
+    }
+    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction SilentlyContinue
+    Write-Ok 'NuGet provider + trusted PSGallery'
+} catch { Write-Warn "PSGallery: $($_.Exception.Message)" }
+
+foreach ($m in 'PSReadLine', 'Terminal-Icons', 'posh-git') {
+    try {
+        # -SkipPublisherCheck is required for PSReadLine: Windows ships a signed
+        # copy and the gallery build has a different publisher.
+        Install-Module -Name $m -Scope AllUsers -Force -AllowClobber -SkipPublisherCheck -ErrorAction Stop
+        Write-Ok "module $m"
+    } catch { Write-Warn "module $m : $($_.Exception.Message)" }
+}
+
+# ==================================================================
+Write-Step 'PowerShell $PROFILE'
+# ==================================================================
+$beginMarker = '# ===== BEGIN install-pc ====='
+$endMarker   = '# ===== END install-pc ====='
+
+$profileBody = @"
+$beginMarker
+# Generated by install-pc / setup-terminal.ps1 - edit above or below this block,
+# anything BETWEEN the markers is overwritten on the next run.
+
+# --- UTF-8 so Vietnamese text is not mangled ----------------------------
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new(`$false)
+[Console]::InputEncoding  = [Text.UTF8Encoding]::new(`$false)
+`$OutputEncoding           = [Text.UTF8Encoding]::new(`$false)
+
+# --- Oh My Posh prompt -------------------------------------------------
+`$poshThemes = `$env:POSH_THEMES_PATH
+if (-not `$poshThemes) { `$poshThemes = "`$env:LOCALAPPDATA\Programs\oh-my-posh\themes" }
+if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
+    `$themeFile = Join-Path `$poshThemes '$PoshTheme.omp.json'
+    if (Test-Path `$themeFile) { oh-my-posh init pwsh --config `$themeFile | Invoke-Expression }
+    else                       { oh-my-posh init pwsh | Invoke-Expression }
+}
+
+# --- Icons in ls / dir -------------------------------------------------
+Import-Module Terminal-Icons -ErrorAction SilentlyContinue
+
+# --- Intellisense: inline suggestion + dropdown list --------------------
+Import-Module PSReadLine -ErrorAction SilentlyContinue
+if (Get-Module PSReadLine) {
+    Set-PSReadLineOption -EditMode Windows
+    # Predictive intellisense needs three things, and throws loudly if any is
+    # missing:
+    #   - PSReadLine 2.2+            (Windows ships 2.0 in-box)
+    #   - PowerShell 7.2+            for the 'Plugin' source specifically
+    #   - a real, non-redirected console with virtual terminal support
+    # That last one is why a plain 'powershell -Command ...' from a script used
+    # to fill the screen with red - guard it rather than let it fail.
+    `$canPredict = (Get-Module PSReadLine).Version -ge [version]'2.2.0' -and
+                  -not [Console]::IsOutputRedirected -and
+                  `$Host.Name -eq 'ConsoleHost'
+    if (`$canPredict) {
+        try {
+            if (`$PSVersionTable.PSVersion -ge [version]'7.2') {
+                Set-PSReadLineOption -PredictionSource HistoryAndPlugin
+            } else {
+                Set-PSReadLineOption -PredictionSource History
+            }
+            Set-PSReadLineOption -PredictionViewStyle ListView
+            Set-PSReadLineKeyHandler -Key F2 -Function SwitchPredictionView
+        } catch { }
+    }
+    Set-PSReadLineOption -HistorySearchCursorMovesToEnd
+    Set-PSReadLineOption -MaximumHistoryCount 10000
+    Set-PSReadLineOption -Colors @{ InlinePrediction = '#6b7280' }
+
+    Set-PSReadLineKeyHandler -Key Tab          -Function MenuComplete
+    Set-PSReadLineKeyHandler -Key UpArrow      -Function HistorySearchBackward
+    Set-PSReadLineKeyHandler -Key DownArrow    -Function HistorySearchForward
+    Set-PSReadLineKeyHandler -Key RightArrow   -Function ForwardWord      # accept one word of the suggestion
+    Set-PSReadLineKeyHandler -Key 'Ctrl+d'     -Function DeleteChar
+    Set-PSReadLineKeyHandler -Key 'Alt+Enter'  -Function AddLine
+}
+
+# --- git helpers --------------------------------------------------------
+Import-Module posh-git -ErrorAction SilentlyContinue
+
+# --- Native argument completers ----------------------------------------
+if (Get-Command winget -ErrorAction SilentlyContinue) {
+    Register-ArgumentCompleter -Native -CommandName winget -ScriptBlock {
+        param(`$wordToComplete, `$commandAst, `$cursorPosition)
+        [Console]::InputEncoding = [Console]::OutputEncoding = `$OutputEncoding = [Text.Utf8Encoding]::new()
+        winget complete --word="`$wordToComplete" --commandline "`$(`$commandAst.ToString())" --position `$cursorPosition |
+            ForEach-Object { [Management.Automation.CompletionResult]::new(`$_, `$_, 'ParameterValue', `$_) }
+    }
+}
+`$chocoProfile = "`$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+if (Test-Path `$chocoProfile) { Import-Module `$chocoProfile }
+
+# --- Aliases ------------------------------------------------------------
+Set-Alias ll  Get-ChildItem
+Set-Alias grep Select-String
+function .. { Set-Location .. }
+function ... { Set-Location ..\.. }
+function which (`$name) { (Get-Command `$name -ErrorAction SilentlyContinue).Source }
+
+$endMarker
+"@
+
+# Both hosts: pwsh 7 and Windows PowerShell 5.1. Use the real Documents
+# folder so OneDrive redirection is handled.
+$docs = [Environment]::GetFolderPath('MyDocuments')
+$profilePaths = @(
+    Join-Path $docs 'PowerShell\Microsoft.PowerShell_profile.ps1'
+    Join-Path $docs 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'
+)
+
+foreach ($p in $profilePaths) {
+    try {
+        $dir = Split-Path -Parent $p
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+
+        if (Test-Path -LiteralPath $p) {
+            Backup-File $p
+            $existing = Get-Content -LiteralPath $p -Raw
+            if (-not $existing) { $existing = '' }
+            # Plain index surgery, not regex replace: the profile body is full of
+            # $ and \ that a regex replacement string would mangle.
+            $i0 = $existing.IndexOf($beginMarker)
+            $i1 = $existing.IndexOf($endMarker)
+            $new = if ($i0 -ge 0 -and $i1 -gt $i0) {
+                       $existing.Substring(0, $i0) + $profileBody + $existing.Substring($i1 + $endMarker.Length)
+                   } else {
+                       $existing.TrimEnd() + "`r`n`r`n" + $profileBody
+                   }
+        } else {
+            $new = $profileBody
+        }
+        Set-Content -LiteralPath $p -Value $new -Encoding UTF8 -Force
+        Write-Ok "profile: $p"
+    } catch { Write-Err "profile $p : $($_.Exception.Message)" }
+}
+
+# ==================================================================
+Write-Step 'Windows Terminal settings'
+# ==================================================================
+$wtPaths = @(
+    "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
+    "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json"
+    "$env:LOCALAPPDATA\Microsoft\Windows Terminal\settings.json"
+)
+$wtFound = $false
+foreach ($wt in $wtPaths) {
+    if (-not (Test-Path -LiteralPath $wt)) { continue }
+    $wtFound = $true
+    try {
+        Backup-File $wt
+        $cfg = Read-JsonFile $wt
+        if (-not $cfg) { Write-Warn "skip $wt (unreadable)"; continue }
+
+        if (-not $cfg.profiles) { Set-JsonProperty $cfg 'profiles' ([pscustomobject]@{}) }
+        if (-not $cfg.profiles.defaults) { Set-JsonProperty $cfg.profiles 'defaults' ([pscustomobject]@{}) }
+
+        $d = $cfg.profiles.defaults
+        # Comma-separated fallback chain (Windows Terminal 1.20+). Nerd Font
+        # patched builds carry the powerline glyphs but routinely drop Latin
+        # Extended, so Vietnamese (ô ư ạ ẻ) renders as tofu unless a font that
+        # actually has those glyphs backs it up.
+        Set-JsonProperty $d 'font' ([pscustomobject]@{
+            face = "$TerminalFont, $FontFallback"
+            size = 11
+        })
+        Set-JsonProperty $d 'colorScheme'   'One Half Dark'
+        Set-JsonProperty $d 'useAcrylic'    $true
+        Set-JsonProperty $d 'opacity'       92
+        Set-JsonProperty $d 'padding'       '10'
+        Set-JsonProperty $d 'cursorShape'   'filledBox'
+        Set-JsonProperty $d 'scrollbarState' 'hidden'
+
+        # Default to PowerShell 7 if its profile exists - oh-my-posh looks best there.
+        # WT only materialises that profile the first time it starts AFTER pwsh
+        # is installed, so on a fresh run the list may not have it yet.
+        $pwshProfile = $cfg.profiles.list | Where-Object {
+            $_.source -eq 'Windows.Terminal.PowershellCore' -or
+            $_.commandline -match 'pwsh' -or
+            $_.name -eq 'PowerShell'
+        } | Select-Object -First 1
+        if ($pwshProfile) {
+            Set-JsonProperty $cfg 'defaultProfile' $pwshProfile.guid
+            Write-Ok 'default profile -> PowerShell 7'
+        } else {
+            Write-Warn 'PowerShell 7 profile not in Windows Terminal yet - open WT once, then re-run setup-terminal.ps1'
+        }
+
+        Set-JsonProperty $cfg 'copyOnSelect' $true
+
+        $cfg | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $wt -Encoding UTF8 -Force
+        Write-Ok "Windows Terminal font -> $TerminalFont"
+    } catch { Write-Err "Windows Terminal: $($_.Exception.Message)" }
+}
+if (-not $wtFound) {
+    Write-Warn 'Windows Terminal settings.json not found - launch Windows Terminal once, then re-run: .\install.ps1 -SkipApps'
+}
+
+# ==================================================================
+Write-Step 'VS Code settings'
+# ==================================================================
+# A hand-tuned settings.json is full of comments and personal preferences that
+# ConvertTo-Json would silently destroy. So: only ADD keys that are missing,
+# by splicing text in after the opening brace. Existing keys are never touched.
+$codeSettings = "$env:APPDATA\Code\User\settings.json"
+$codeWanted = [ordered]@{
+    'editor.fontFamily'                  = "'$EditorFont', 'Cascadia Code', Consolas, monospace"
+    'editor.fontLigatures'               = $true
+    'terminal.integrated.fontFamily'     = "'$TerminalFont'"
+}
+try {
+    $dir = Split-Path -Parent $codeSettings
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+
+    if (-not (Test-Path -LiteralPath $codeSettings)) {
+        # Fresh machine - safe to write the whole thing.
+        ([pscustomobject]$codeWanted | ConvertTo-Json -Depth 32) |
+            Set-Content -LiteralPath $codeSettings -Encoding UTF8 -Force
+        Write-Ok "VS Code settings created (font $EditorFont)"
+    } else {
+        $raw = Get-Content -LiteralPath $codeSettings -Raw -Encoding UTF8
+        [void](Read-JsonFile $codeSettings)   # throws -> we abort before touching anything
+
+        $missing = $codeWanted.Keys | Where-Object { -not (Test-JsonHasKey $raw $_) }
+        $kept    = $codeWanted.Keys | Where-Object { Test-JsonHasKey $raw $_ }
+
+        if ($missing) {
+            Backup-File $codeSettings
+            $insert = ($missing | ForEach-Object {
+                '  "' + $_ + '": ' + (ConvertTo-Json $codeWanted[$_] -Compress) + ','
+            }) -join "`r`n"
+            $i = $raw.IndexOf('{')
+            $new = $raw.Substring(0, $i + 1) + "`r`n" + $insert + $raw.Substring($i + 1)
+            Set-Content -LiteralPath $codeSettings -Value $new -Encoding UTF8 -Force
+            Write-Ok "VS Code: added $($missing -join ', ')"
+        } else {
+            Write-Ok 'VS Code: nothing to add'
+        }
+        foreach ($k in $kept) { Write-Host "       kept your own '$k'" -ForegroundColor DarkGray }
+    }
+} catch {
+    Write-Err "VS Code settings LEFT UNTOUCHED: $($_.Exception.Message)"
+}
+
+# ==================================================================
+Write-Step 'VS Code right-click context menu'
+# ==================================================================
+function Add-VsCodeContextMenu {
+    $code = @(
+        "$env:ProgramFiles\Microsoft VS Code\Code.exe"
+        "${env:ProgramFiles(x86)}\Microsoft VS Code\Code.exe"
+        "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+    if (-not $code) { Write-Warn 'Code.exe not found - skipping context menu'; return }
+
+    # Go through the .NET registry API, NOT the PowerShell registry provider.
+    # The "all file types" key is literally named "*", and New-Item -Path
+    # 'HKCR:\*\shell\VSCode' makes the provider treat it as a wildcard and
+    # enumerate every class in the hive - it hangs for minutes and creates
+    # nothing. The .NET API takes the name literally.
+    $entries = @(
+        @{ Sub = '*\shell\VSCode';                    Arg = '%1' }   # a file
+        @{ Sub = 'Directory\shell\VSCode';            Arg = '%V' }   # a folder
+        @{ Sub = 'Directory\Background\shell\VSCode'; Arg = '%V' }   # empty space in a folder
+    )
+    foreach ($e in $entries) {
+        $key = $null; $cmd = $null
+        try {
+            $key = [Microsoft.Win32.Registry]::ClassesRoot.CreateSubKey($e.Sub)
+            $key.SetValue('', 'Open w&ith Code')            # '' = the (Default) value
+            $key.SetValue('Icon', "$code,0")
+            $cmd = $key.CreateSubKey('command')
+            $cmd.SetValue('', "`"$code`" `"$($e.Arg)`"")
+        } finally {
+            if ($cmd) { $cmd.Dispose() }
+            if ($key) { $key.Dispose() }
+        }
+    }
+    Write-Ok 'Open with Code (files, folders, folder background)'
+}
+try { Add-VsCodeContextMenu } catch { Write-Err "context menu: $($_.Exception.Message)" }
+
+# ==================================================================
+Write-Step 'cmd.exe autocomplete (Clink)'
+# ==================================================================
+# cmd.exe has no native intellisense. Clink injects readline into it:
+# history search, inline suggestions and Tab completion.
+# clink installs into a version-numbered subfolder (…\clink\1.9.31\clink.bat),
+# so search rather than guess, and prefer the highest version found.
+$clink = @("$env:ProgramFiles\clink", "${env:ProgramFiles(x86)}\clink", 'C:\tools\clink') |
+    Where-Object { Test-Path $_ } |
+    ForEach-Object { Get-ChildItem $_ -Recurse -Filter 'clink.bat' -ErrorAction SilentlyContinue } |
+    Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+
+if ($clink) {
+    try {
+        & $clink autorun install | Out-Null
+        # Inline fish-style suggestion from history - the actual "intellisense"
+        # bit. Only exists in clink-maintained (1.x), not the dead 0.4.9 build.
+        & $clink set autosuggest.enable true            2>&1 | Out-Null
+        & $clink set history.dupe_mode erase_prev       2>&1 | Out-Null
+        & $clink set match.expand_abbrev true           2>&1 | Out-Null
+        Write-Ok "Clink autorun enabled ($clink)"
+    } catch { Write-Warn "clink autorun: $($_.Exception.Message)" }
+} else {
+    Write-Warn 'clink not found - cmd.exe stays without autocomplete'
+}
+
+# ==================================================================
+Write-Step 'Font check'
+# ==================================================================
+$installed = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts' -ErrorAction SilentlyContinue).PSObject.Properties.Name
+foreach ($f in @($TerminalFont, $EditorFont)) {
+    if ($installed -match [regex]::Escape($f.Split(' ')[0])) { Write-Ok "font present: $f" }
+    else { Write-Warn "font '$f' not detected. Run: oh-my-posh font install CascadiaCode" }
+}
