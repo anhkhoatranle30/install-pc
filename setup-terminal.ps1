@@ -224,6 +224,43 @@ function reload-path {
 }
 Set-Alias refreshenv reload-path
 
+# --- Cách ĐÚNG để thêm thư mục vào PATH ---------------------------------
+function Add-UserPath {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]`$Directory)
+
+    `$dir = (Resolve-Path `$Directory -ErrorAction SilentlyContinue)?.Path
+    if (-not `$dir) { Write-Warning "không có thư mục: `$Directory"; return }
+
+    `$cur = [Environment]::GetEnvironmentVariable('Path','User')
+    if ((`$cur -split ';' | ForEach-Object { `$_.TrimEnd('\').ToLower() }) -contains `$dir.TrimEnd('\').ToLower()) {
+        Write-Host "đã có trong user PATH: `$dir" -ForegroundColor DarkGray
+        return
+    }
+    [Environment]::SetEnvironmentVariable('Path', "`$cur;`$dir", 'User')
+    reload-path
+    Write-Host "đã thêm vào user PATH: `$dir" -ForegroundColor Green
+}
+
+# --- Chặn setx phá PATH -------------------------------------------------
+# setx PATH "%PATH%;..." là cái bẫy: %PATH% là PATH ĐÃ GỘP system+user, nên
+# setx chép cả system PATH vào user PATH rồi cắt cụt ở 1024 ký tự. Máy này
+# từng mất WindowsApps và .local\bin vì đúng lỗi đó.
+# Hàm này chỉ chặn khi đụng PATH; mọi biến khác vẫn chạy setx thật.
+# Cần dùng setx thật cho PATH: gõ  setx.exe  (có đuôi .exe) để bỏ qua hàm này.
+function setx {
+    `$real = Join-Path `$env:SystemRoot 'System32\setx.exe'
+    if (`$args.Count -gt 0 -and `$args[0] -match '^(?i)path`$') {
+        Write-Host ''
+        Write-Warning 'ĐỪNG dùng setx cho PATH - nó sẽ cắt cụt ở 1024 ký tự và trộn system PATH vào user PATH.'
+        Write-Host '  Dùng thay thế:  Add-UserPath "C:\thu\muc"' -ForegroundColor Yellow
+        Write-Host '  Cố tình vẫn muốn: setx.exe PATH "..."' -ForegroundColor DarkGray
+        Write-Host '  PATH lỡ hỏng rồi: G:\install-pc\fix-path.ps1' -ForegroundColor DarkGray
+        return
+    }
+    & `$real @args
+}
+
 # --- Aliases ------------------------------------------------------------
 Set-Alias ll  Get-ChildItem
 Set-Alias grep Select-String
