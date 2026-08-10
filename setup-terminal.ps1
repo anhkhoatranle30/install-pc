@@ -210,6 +210,20 @@ if (Get-Command winget -ErrorAction SilentlyContinue) {
 `$chocoProfile = "`$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
 if (Test-Path `$chocoProfile) { Import-Module `$chocoProfile }
 
+# --- Nạp lại PATH mà không phải mở terminal mới -------------------------
+# Biến môi trường chỉ áp cho tiến trình MỚI. Sau khi cài gì đó hoặc chạy
+# fix-path.ps1, shell đang mở vẫn giữ PATH cũ - gõ  reload-path  là xong.
+# Với quil thì phải chạy  quil restart : pane do daemon sinh ra nên chúng
+# thừa kế môi trường của daemon, không phải của pane hiện tại.
+# (Không dùng dấu backtick trong comment: trong here-string sinh ra file này,
+#  backtick-r là escape của carriage return và sẽ cắt đôi dòng comment.)
+function reload-path {
+    `$env:PATH = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' +
+                [Environment]::GetEnvironmentVariable('Path','User')
+    Write-Host "PATH nạp lại: `$((`$env:PATH -split ';' | Where-Object { `$_ }).Count) mục" -ForegroundColor Green
+}
+Set-Alias refreshenv reload-path
+
 # --- Aliases ------------------------------------------------------------
 Set-Alias ll  Get-ChildItem
 Set-Alias grep Select-String
