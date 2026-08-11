@@ -1,18 +1,21 @@
 <#
     Motherboard / driver reminder.
 
-    Detects the board, BIOS and GPUs, prints them, then shows a blocking
-    TopMost popup with the exact vendor download page so nobody forgets to
-    update chipset / LAN / audio drivers on a fresh install.
+    Detects the board, BIOS and GPUs, prints them, then shows a TopMost popup
+    with the exact vendor download page so nobody forgets to update chipset /
+    LAN / audio drivers on a fresh install. The popup is modal but times out,
+    so an unattended install cannot hang on it.
 
     Standalone:
         powershell -ExecutionPolicy Bypass -File .\check-drivers.ps1
         .\check-drivers.ps1 -NoPopup      # console only, for logs
+        .\check-drivers.ps1 -TimeoutSeconds 0   # wait for an answer for ever
 #>
 [CmdletBinding()]
 param(
     [switch]$NoPopup,
-    [switch]$OpenBrowser   # skip the Yes/No question, just open the pages
+    [switch]$OpenBrowser,          # skip the Yes/No question, just open the pages
+    [int]$TimeoutSeconds = 120     # auto-answer "Later" after this long; 0 = never
 )
 
 $ErrorActionPreference = 'Continue'
@@ -134,34 +137,102 @@ $lines += @('', 'Open these pages in your browser now?')
 $message = $lines -join "`r`n"
 $title   = 'ACTION REQUIRED - Update your drivers'
 
+# Own dialog instead of [MessageBox]::Show with a hidden owner form. That
+# trick did the opposite of what its comment claimed: a MessageBox owned by
+# another window does NOT inherit TopMost (WS_EX_TOPMOST stays unset), gets no
+# taskbar button and no Alt-Tab entry, and it is placed on the monitor nearest
+# its owner - which was parked at (-3000,-3000). So the moment anything took
+# focus, or a second display was attached (Parsec / RDP virtual adapters), the
+# question sat behind the console with no way to reach it and the installer
+# looked frozen on its last printed line.
+function Show-DriverDialog {
+    param([string]$Text, [string]$Title, [int]$Seconds)
+
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+    Add-Type -AssemblyName System.Drawing        -ErrorAction Stop
+
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text            = $Title
+    $form.StartPosition   = 'CenterScreen'
+    $form.FormBorderStyle = 'FixedDialog'
+    $form.MaximizeBox     = $false
+    $form.MinimizeBox     = $false
+    $form.TopMost         = $true     # real topmost: this form owns nothing
+    $form.ShowInTaskbar   = $true     # clickable in taskbar / Alt-Tab if buried
+    $form.ClientSize      = New-Object System.Drawing.Size(620, 380)
+
+    $box = New-Object System.Windows.Forms.TextBox
+    $box.Multiline   = $true
+    $box.ReadOnly    = $true
+    $box.ScrollBars  = 'Vertical'
+    $box.BorderStyle = 'None'
+    $box.BackColor   = $form.BackColor
+    $box.TabStop     = $false
+    $box.Font        = New-Object System.Drawing.Font('Consolas', 9.75)
+    $box.Text        = $Text
+    $box.SetBounds(12, 12, 596, 290)
+
+    $yes = New-Object System.Windows.Forms.Button
+    $yes.Text         = 'Open pages'
+    $yes.DialogResult = [System.Windows.Forms.DialogResult]::Yes
+    $yes.SetBounds(396, 320, 104, 30)
+
+    $no = New-Object System.Windows.Forms.Button
+    $no.Text         = 'Later'
+    $no.DialogResult = [System.Windows.Forms.DialogResult]::No
+    $no.SetBounds(508, 320, 100, 30)
+
+    $count = New-Object System.Windows.Forms.Label
+    $count.SetBounds(12, 326, 370, 20)
+    $count.ForeColor = [System.Drawing.Color]::DimGray
+
+    $form.Controls.AddRange(@($box, $yes, $no, $count))
+    $form.AcceptButton = $yes
+    $form.CancelButton = $no
+    $form.Add_Shown({
+        $form.Activate()
+        [System.Media.SystemSounds]::Exclamation.Play()
+    })
+
+    # An unattended install must never wait for ever: count down, then "Later".
+    $timer = $null
+    if ($Seconds -gt 0) {
+        $state = @{ Left = $Seconds }
+        $count.Text = "Continuing without opening in $($state.Left)s"
+        $timer = New-Object System.Windows.Forms.Timer
+        $timer.Interval = 1000
+        $timer.Add_Tick({
+            $state.Left--
+            if ($state.Left -le 0) {
+                $timer.Stop()
+                $form.DialogResult = [System.Windows.Forms.DialogResult]::No
+                $form.Close()
+            } else {
+                $count.Text = "Continuing without opening in $($state.Left)s"
+            }
+        })
+        $timer.Start()
+    }
+
+    $answer = $form.ShowDialog()
+    if ($timer) { $timer.Stop(); $timer.Dispose() }
+    $form.Dispose()
+    return ($answer -eq [System.Windows.Forms.DialogResult]::Yes)
+}
+
 $openThem = $OpenBrowser
 if (-not $openThem) {
-    try {
-        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
-        Add-Type -AssemblyName System.Drawing        -ErrorAction Stop
-        # Owner form kept off-screen purely to force the dialog TopMost -
-        # otherwise it hides behind the installer console.
-        $owner = New-Object System.Windows.Forms.Form -Property @{
-            TopMost       = $true
-            ShowInTaskbar = $false
-            StartPosition = 'Manual'
-            Location      = New-Object System.Drawing.Point(-3000, -3000)
-            Size          = New-Object System.Drawing.Size(1, 1)
+    if (-not [Environment]::UserInteractive) {
+        # Scheduled task / service: nobody can answer, so do not ask.
+        Write-Host "`n  (non-interactive session - skipping the driver prompt)" -ForegroundColor DarkGray
+    } else {
+        try {
+            $openThem = Show-DriverDialog -Text $message -Title $title -Seconds $TimeoutSeconds
+        } catch {
+            # Headless / no WinForms (Server Core, SSH session): fall back to console.
+            Write-Host "`n$message`n" -ForegroundColor Yellow
+            $openThem = ((Read-Host 'Open these pages now? [y/N]') -match '^y')
         }
-        $owner.Show()
-        [System.Media.SystemSounds]::Exclamation.Play()
-        $answer = [System.Windows.Forms.MessageBox]::Show(
-            $owner, $message, $title,
-            [System.Windows.Forms.MessageBoxButtons]::YesNo,
-            [System.Windows.Forms.MessageBoxIcon]::Warning,
-            [System.Windows.Forms.MessageBoxDefaultButton]::Button1
-        )
-        $owner.Close(); $owner.Dispose()
-        $openThem = ($answer -eq [System.Windows.Forms.DialogResult]::Yes)
-    } catch {
-        # Headless / no WinForms (Server Core, SSH session): fall back to console.
-        Write-Host "`n$message`n" -ForegroundColor Yellow
-        $openThem = ((Read-Host 'Open these pages now? [y/N]') -match '^y')
     }
 }
 

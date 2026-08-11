@@ -315,7 +315,8 @@ if ($Global:Results.Count) {
 }
 
 # ------------------------------------------------------------------
-# Always last: the driver nag. Blocking popup so it cannot be missed.
+# Always last: the driver nag. Modal popup so it cannot be missed, but it
+# times out on its own - the install must not hang waiting for an answer.
 # -OnlyTerminal is a targeted re-run, so skip it there.
 if (-not $OnlyTerminal) { & "$root\check-drivers.ps1" }
 

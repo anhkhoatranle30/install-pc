@@ -147,3 +147,28 @@ $env:PATH = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' +
 
 Riêng **quil**: pane do daemon `quild` sinh ra nên chúng thừa kế môi trường của
 daemon lúc daemon khởi động. Mở tab mới không đủ — phải `quil restart`.
+
+## MessageBox có owner: không TopMost, không taskbar, không Alt-Tab
+
+`check-drivers.ps1` từng tạo một Form ẩn ở `(-3000,-3000)` rồi
+`[MessageBox]::Show($owner, ...)` với comment "để ép dialog TopMost". Sai hoàn toàn —
+đo bằng `GetWindowLong(GWL_EXSTYLE)` thì `WS_EX_TOPMOST` **không** được set. Tệ hơn:
+
+- Cửa sổ **có owner** thì không có taskbar button và **không xuất hiện trong Alt-Tab**.
+- Dialog được đặt giữa **owner**, tức là màn hình gần `(-3000,-3000)` nhất — máy có
+  Parsec / RDP virtual display adapter thì nó nhảy sang màn hình khác.
+
+Kết quả: `install.ps1` đứng im ở dòng log cuối, không thấy popup đâu, không click được.
+Ai cũng tưởng script treo. Đúng thật là nó đang chờ trả lời một dialog vô hình.
+
+Cách đúng: tự dựng `Form` (không owner) với `TopMost = $true`,
+`ShowInTaskbar = $true`, `StartPosition = 'CenterScreen'`, `Add_Shown{ $form.Activate() }`.
+
+## Popup trong script install phải có timeout
+
+Bất kỳ chỗ nào block chờ người dùng (`ShowDialog`, `Read-Host`) đều biến install thành
+treo vĩnh viễn khi chạy không người trông. Thêm `Timer` đếm ngược rồi tự chọn mặc định,
+và bỏ hẳn prompt khi `-not [Environment]::UserInteractive` (scheduled task / service).
+
+Đếm ngược trong `Add_Tick` phải dùng **hashtable** (`$state = @{ Left = $n }`), không dùng
+`$n--` — gán trong scriptblock chỉ tạo biến local của scriptblock, số không bao giờ giảm.

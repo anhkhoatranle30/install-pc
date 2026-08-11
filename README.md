@@ -86,6 +86,9 @@ Windows Update **không** ship driver chipset / LAN / audio / BIOS của mainboa
 `check-drivers.ps1` đọc `Win32_BaseBoard` + `Win32_BIOS` + `Win32_VideoController`, map hãng
 → trang download, cảnh báo nếu BIOS cũ hơn 365 ngày, rồi popup hỏi có mở trang không.
 
+Popup có taskbar button + Alt-Tab và **tự đóng sau 120 giây** (chọn "Later") để install
+không bao giờ treo vì chờ trả lời. `-TimeoutSeconds 0` = chờ mãi, `-NoPopup` = chỉ in console.
+
 Hỗ trợ deep-link: Gigabyte, ASUS, MSI, ASRock, Biostar, Supermicro, Framework, Intel, Acer, và
 Dell / HP / Lenovo (dùng luôn service tag lấy từ BIOS serial). Hãng khác → fallback Google search.
 
