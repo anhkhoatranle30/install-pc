@@ -1,17 +1,25 @@
 ﻿<#
-    Keep the PC awake + let Remote Desktop in.
+    Đặt máy không sleep + bật Remote Desktop.
 
-    Needed together: an RDP box that falls asleep is an RDP box you cannot
-    reach. Windows also has a *second*, hidden sleep timer ("unattended sleep")
-    that fires after a remote session disconnects even when the normal
-    standby timeout is 0 - that one is the usual reason a machine still
-    vanishes an hour after you disconnect.
+    PHẦN POWER CHỈ LÀM ĐÚNG 2 MỤC có trong giao diện
+    Control Panel -> Power Options -> Edit Plan Settings:
+
+        Turn off the display:      Never
+        Put the computer to sleep: Never
+
+    Không đụng hibernate, disk timeout, giá trị pin (-dc), setting ẩn, và
+    KHÔNG đụng registry driver/thiết bị. Bản trước có ghi PnPCapabilities vào
+    registry card mạng - đã bỏ, vì đó là setting của DRIVER chứ không phải
+    power plan, và restore power settings không gỡ được nó.
+
+    Phần RDP chỉ sửa registry Terminal Server + bật firewall rule sẵn có của
+    Windows. Không cài driver, không đụng phần cứng.
 
     Usage:
-        .\setup-power-remote.ps1                 # no-sleep + RDP on 3389
-        .\setup-power-remote.ps1 -RdpPort 13389  # non-default port
-        .\setup-power-remote.ps1 -SkipRdp        # only the power settings
-        .\setup-power-remote.ps1 -SkipPower      # only RDP
+        .\setup-power-remote.ps1 -Check    # CHỈ XEM, không ghi gì
+        .\setup-power-remote.ps1           # 2 mục power + RDP 3389
+        .\setup-power-remote.ps1 -SkipRdp  # chỉ 2 mục power
+        .\setup-power-remote.ps1 -SkipPower  # chỉ RDP
 #>
 #Requires -RunAsAdministrator
 [CmdletBinding()]
@@ -20,7 +28,8 @@ param(
     [ValidateRange(0, 65535)][int]$RdpPort = 0,
     [switch]$SkipPower,
     [switch]$SkipRdp,
-    [switch]$AllowScreenOff   # let the display still switch off
+    [switch]$AllowScreenOff,  # true = vẫn cho tắt màn hình
+    [switch]$Check            # chỉ đọc và in ra dự định, không thay đổi gì
 )
 
 $ErrorActionPreference = 'Continue'
@@ -36,75 +45,86 @@ function Write-Err  { param($t) Write-Host "  [fail] $t" -ForegroundColor Red }
 
 # ==================================================================
 if (-not $SkipPower) {
-Write-Step 'Power: never sleep'
+Write-Step 'Power: đúng 2 mục trong Power Options'
 
-    # ac = plugged in, dc = on battery. 0 = never.
-    $timeouts = @(
-        @{ Arg = 'standby-timeout-ac';   Value = 0; What = 'sleep (plugged in)' }
-        @{ Arg = 'standby-timeout-dc';   Value = 0; What = 'sleep (battery)' }
-        @{ Arg = 'hibernate-timeout-ac'; Value = 0; What = 'hibernate (plugged in)' }
-        @{ Arg = 'hibernate-timeout-dc'; Value = 0; What = 'hibernate (battery)' }
-        @{ Arg = 'disk-timeout-ac';      Value = 0; What = 'disk spindown (plugged in)' }
-    )
-    if (-not $AllowScreenOff) {
-        $timeouts += @{ Arg = 'monitor-timeout-ac'; Value = 0; What = 'display off (plugged in)' }
-    }
-
-    foreach ($t in $timeouts) {
-        & powercfg /change $t.Arg $t.Value 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) { Write-Ok "$($t.What) = never" }
-        else { Write-Err "powercfg /change $($t.Arg) failed ($LASTEXITCODE)" }
-    }
-
-    # The one the Settings UI does not show you. Without this the box sleeps
-    # ~2 min after an RDP session drops, no matter what the above says.
-    $SUB_SLEEP     = '238c9fa8-0aad-41ed-83f4-97be242c8f20'
-    $UNATTENDSLEEP = '7bc4a2f9-d8fc-4469-b07b-33eb785aaca0'
-    & powercfg /setacvalueindex SCHEME_CURRENT $SUB_SLEEP $UNATTENDSLEEP 0 2>&1 | Out-Null
-    & powercfg /setdcvalueindex SCHEME_CURRENT $SUB_SLEEP $UNATTENDSLEEP 0 2>&1 | Out-Null
-    & powercfg /setactive SCHEME_CURRENT 2>&1 | Out-Null
-    Write-Ok 'unattended sleep timeout = never  (the RDP-disconnect killer)'
-
-    # NICs are allowed to power down by default; that drops the box off the
-    # network even while it is technically awake.
+    # Làm ĐÚNG hai thứ mà giao diện Control Panel -> Power Options ->
+    # Edit Plan Settings có, không hơn:
     #
-    # Get/Set-NetAdapterPowerManagement throws "A device attached to the system
-    # is not functioning" on plenty of real drivers that simply do not expose
-    # the WMI power class, so drive it through the adapter's class registry key
-    # instead. PnPCapabilities bit 0x8 = "don't let the computer turn this off",
-    # bit 0x10 = "don't let it wake the computer"; 24 (0x18) sets both.
-    $netClass = 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}'
-    $physical = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue)
-    if (-not $physical) { Write-Warn 'no physical network adapters found' }
-
-    foreach ($nic in $physical) {
-        # Only touch physical NICs - never the ZeroTier / WSL / Hyper-V virtual ones.
-        $key = Get-ChildItem $netClass -ErrorAction SilentlyContinue |
-               Where-Object {
-                   (Get-ItemProperty $_.PSPath -Name NetCfgInstanceId -ErrorAction SilentlyContinue).NetCfgInstanceId -eq $nic.InterfaceGuid
-               } | Select-Object -First 1
-
-        if (-not $key) { Write-Warn "no registry key for NIC '$($nic.Name)'"; continue }
-
-        try {
-            $cur = (Get-ItemProperty $key.PSPath -Name PnPCapabilities -ErrorAction SilentlyContinue).PnPCapabilities
-            if ($cur -eq 24) {
-                Write-Ok "NIC power saving already off: $($nic.Name)"
-            } else {
-                Set-ItemProperty -Path $key.PSPath -Name PnPCapabilities -Value 24 -Type DWord -Force
-                Write-Ok "NIC stays powered: $($nic.Name)  (was '$cur', now 24 - applies after adapter restart)"
-            }
-        } catch { Write-Warn "NIC '$($nic.Name)': $($_.Exception.Message)" }
+    #     Turn off the display:      Never   -> monitor-timeout-ac 0
+    #     Put the computer to sleep: Never   -> standby-timeout-ac 0
+    #
+    # Cố tình KHÔNG làm những thứ này (bản trước có, đã bỏ):
+    #   - hibernate-timeout, disk-timeout: không có trong giao diện, không ai yêu cầu
+    #   - các giá trị -dc: máy desktop không có pin, giao diện cũng không hiện
+    #   - UNATTENDSLEEP: setting ẩn, chỉ cần cho RDP; ai cần thì tự bật
+    #   - PnPCapabilities của card mạng: đó là setting DRIVER/thiết bị, không
+    #     phải power plan. Bản trước ghi giá trị 24 vào registry card mạng dù
+    #     Get-NetAdapterPowerManagement đã báo lỗi trên mọi card - đúng ra phải
+    #     dừng lại. Nó cũng không bị xoá khi restore power settings, nên để lại
+    #     rác mà người dùng không gỡ được bằng giao diện Power Options.
+    #     Muốn tắt tiết kiệm điện cho card mạng thì làm bằng tay:
+    #     Device Manager -> card -> Power Management.
+    $wanted = @(
+        @{ Arg = 'monitor-timeout-ac'; What = 'Turn off the display' }
+        @{ Arg = 'standby-timeout-ac'; What = 'Put the computer to sleep' }
+    )
+    if ($AllowScreenOff) {
+        $wanted = $wanted | Where-Object { $_.Arg -ne 'monitor-timeout-ac' }
+        Write-Warn 'AllowScreenOff = true -> bỏ qua "Turn off the display"'
     }
 
-    Write-Host "`n  Current effective timeouts:" -ForegroundColor DarkGray
-    (& powercfg /query SCHEME_CURRENT $SUB_SLEEP) -join "`n" |
-        Select-String -Pattern 'GUID Alias|Current AC Power Setting Index' -AllMatches |
-        ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+    # Đọc giá trị hiện tại trước, để in được before/after và để -Check chạy
+    # mà không ghi gì.
+    $SUB_VIDEO = '7516b95f-f776-4464-8c53-06167f40cc99'   # Display
+    $SUB_SLEEP = '238c9fa8-0aad-41ed-83f4-97be242c8f20'   # Sleep
+    $VIDEOIDLE = '3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e'
+    $STANDBYIDLE = '29f6c1db-86da-48c5-9fdb-f2b67b1f44da'
+
+    function Get-AcSeconds {
+        param([string]$Sub, [string]$Setting)
+        $q = (& powercfg /query SCHEME_CURRENT $Sub $Setting) -join "`n"
+        $m = [regex]::Match($q, 'Current AC Power Setting Index:\s*0x([0-9a-fA-F]+)')
+        if ($m.Success) { return [Convert]::ToInt32($m.Groups[1].Value, 16) }
+        return $null
+    }
+    function Fmt { param($s) if ($null -eq $s) { '?' } elseif ($s -eq 0) { 'Never' } else { "$([int]($s/60)) phút" } }
+
+    $before = [ordered]@{
+        'Turn off the display'      = Get-AcSeconds $SUB_VIDEO $VIDEOIDLE
+        'Put the computer to sleep' = Get-AcSeconds $SUB_SLEEP $STANDBYIDLE
+    }
+    Write-Host '  hiện tại:' -ForegroundColor DarkGray
+    foreach ($k in $before.Keys) { Write-Host ("    {0,-26} {1}" -f $k, (Fmt $before[$k])) -ForegroundColor DarkGray }
+
+    if ($Check) {
+        Write-Host ''
+        Write-Warn 'sẽ đặt về Never:'
+        $wanted | ForEach-Object { Write-Host "      $($_.What)" -ForegroundColor Yellow }
+        Write-Warn '-Check: KHÔNG ghi gì cả.'
+    } else {
+        foreach ($t in $wanted) {
+            & powercfg /change $t.Arg 0 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) { Write-Ok "$($t.What) = Never" }
+            else { Write-Err "powercfg /change $($t.Arg) 0 lỗi (exit $LASTEXITCODE)" }
+        }
+
+        Write-Host '  sau khi đặt:' -ForegroundColor DarkGray
+        Write-Host ("    {0,-26} {1}" -f 'Turn off the display',      (Fmt (Get-AcSeconds $SUB_VIDEO $VIDEOIDLE))) -ForegroundColor DarkGray
+        Write-Host ("    {0,-26} {1}" -f 'Put the computer to sleep', (Fmt (Get-AcSeconds $SUB_SLEEP $STANDBYIDLE))) -ForegroundColor DarkGray
+        Write-Host '  (tương đương mở Power Options rồi chọn Never cho 2 mục đó)' -ForegroundColor DarkGray
+    }
 }
 
 # ==================================================================
-if (-not $SkipRdp) {
+if (-not $SkipRdp -and $Check) {
+    Write-Step "Remote Desktop (port $RdpPort) - CHỈ XEM"
+    $rk = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server'
+    Write-Host ("    {0,-26} {1}" -f 'fDenyTSConnections', (Get-ItemProperty $rk -EA SilentlyContinue).fDenyTSConnections) -ForegroundColor DarkGray
+    Write-Host ("    {0,-26} {1}" -f 'TermService', (Get-Service TermService -EA SilentlyContinue).Status) -ForegroundColor DarkGray
+    Write-Warn '-Check: KHÔNG ghi gì cả.'
+}
+
+if (-not $SkipRdp -and -not $Check) {
 Write-Step "Remote Desktop (port $RdpPort)"
 
     $tsKey  = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server'
