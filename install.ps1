@@ -9,14 +9,21 @@
         .\install.ps1 -SkipApps       # only terminal config + driver check
         .\install.ps1 -SkipWsl        # skip the WSL/Ubuntu step (needs reboot)
         .\install.ps1 -OnlyDrivers    # just the motherboard/driver warning
+        .\install.ps1 -OnlyMouse      # just the mouse/cursor profile
 #>
 [CmdletBinding()]
 param(
     [switch]$SkipApps,
     [switch]$SkipTerminal,
     [switch]$SkipWsl,
+    # Phải khai ở đây thì -SkipPowerRemote mới thật sự là switch; trước đó code
+    # dưới có đọc $SkipPowerRemote nhưng không ai khai, nên nó luôn rỗng và
+    # phase power/RDP chạy bất chấp.
+    [switch]$SkipPowerRemote,
+    [switch]$SkipMouse,
     [switch]$OnlyDrivers,
-    [switch]$OnlyTerminal
+    [switch]$OnlyTerminal,
+    [switch]$OnlyMouse
 )
 
 $ErrorActionPreference = 'Continue'
@@ -147,6 +154,11 @@ Write-Host @"
 
 if ($OnlyDrivers) {
     & "$root\check-drivers.ps1"
+    return
+}
+
+if ($OnlyMouse) {
+    & "$root\setup-mouse.ps1"
     return
 }
 
@@ -297,6 +309,11 @@ if (-not $SkipApps -and -not $OnlyTerminal) {
         Write-Warn 'Beyond Compare licence not applied - điền vào local.settings.ps1'
     }
 }
+
+# ---------------------------------------------------------------
+# Profile chuột: không phụ thuộc app nào nên chạy cả khi -SkipApps.
+# Toàn bộ là HKCU, ghi vào profile của user đang chạy script.
+if (-not $OnlyTerminal -and -not $SkipMouse) { & "$root\setup-mouse.ps1" }
 
 # ---------------------------------------------------------------
 if (-not $OnlyTerminal -and -not $SkipPowerRemote) { & "$root\setup-power-remote.ps1" -RdpPort $RdpPort }

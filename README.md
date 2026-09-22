@@ -18,6 +18,9 @@ Xong thì **đóng và mở lại Windows Terminal** (và nên reboot 1 lần ch
 | `setup-terminal.ps1` | Ghi `$PROFILE`, `settings.json` của Windows Terminal / VS Code, context menu, Clink |
 | `setup-wsl.ps1` | Bật Windows feature + cài Ubuntu 22.04 |
 | `setup-power-remote.ps1` | Tắt sleep + bật Remote Desktop + firewall |
+| `setup-mouse.ps1` | Profile chuột: tốc độ, double-click, cuộn, màu + kích thước con trỏ |
+| `mouse-profile.ps1` | Dữ liệu profile chuột — **do `setup-mouse.ps1 -Export` sinh ra** |
+| `cursors/` | 17 file `.cur` của con trỏ màu tuỳ chọn, phải đi kèm profile |
 | `setup-git-diff.ps1` | Beyond Compare làm diff/merge tool cho git + TortoiseGit |
 | `setup-quil.ps1` | Cài Quil (terminal multiplexer sống qua reboot) |
 | `check-drivers.ps1` | Detect mainboard/BIOS/GPU → popup nhắc update driver |
@@ -47,6 +50,12 @@ Hai file cấu hình, đừng lẫn:
 .\setup-power-remote.ps1                 # tắt sleep + bật RDP (port 3389)
 .\setup-power-remote.ps1 -RdpPort 13389  # đổi port RDP
 .\setup-power-remote.ps1 -AllowScreenOff # cho phép tắt màn hình (vẫn không sleep)
+.\install.ps1 -OnlyMouse                 # chỉ profile chuột
+.\install.ps1 -SkipMouse                 # cài mọi thứ trừ profile chuột
+.\setup-mouse.ps1                        # áp profile chuột
+.\setup-mouse.ps1 -Check                 # chỉ so sánh, không ghi gì
+.\setup-mouse.ps1 -SkipCursor            # tốc độ/nút/cuộn, giữ hình con trỏ cũ
+.\setup-mouse.ps1 -Export                # chụp chuột máy này -> mouse-profile.ps1
 ```
 
 Tất cả script **chạy lại được nhiều lần**. File config cũ được backup thành `*.bak-<timestamp>`,
@@ -219,6 +228,53 @@ nơi chứa `ư ạ ẻ`. Nên "Cascadia Code hiển thị tiếng Việt tốt"
 
 Trong repo này: terminal dùng JetBrainsMono NF (có cả hai), editor dùng Cascadia Code
 (editor không cần powerline).
+
+## Profile chuột
+
+`setup-mouse.ps1` bê nguyên cảm giác chuột từ máy cũ sang máy mới: tốc độ con trỏ,
+enhance pointer precision, double-click, cuộn, ẩn con trỏ khi gõ, và **hình con trỏ**
+(màu + kích thước).
+
+Vòng đời:
+
+```powershell
+# máy cũ: chỉnh chuột trong Settings cho vừa ý, rồi chụp lại
+.\setup-mouse.ps1 -Export
+git add mouse-profile.ps1 cursors/ && git commit
+
+# máy mới: install.cmd tự chạy, hoặc chạy riêng
+.\setup-mouse.ps1
+```
+
+Toàn bộ là `HKCU` nên **không cần admin** — nhưng nó ghi vào profile của user đang
+chạy script. Elevate bằng tài khoản admin khác thì setting rơi vào tài khoản đó.
+
+Trước khi ghi, script export 3 key registry ra `mouse-backup-<timestamp>.reg`
+(gitignored). Bấm đúp file đó là về y như cũ.
+
+### Con trỏ màu tuỳ chọn: đừng export registry bằng regedit
+
+Chọn màu tuỳ chọn ở Settings → Accessibility → Mouse pointer thì Windows 11 **không**
+dùng file trong `C:\Windows\Cursors`. Nó tự sinh 17 file `*_eoa.cur` vào
+`%LOCALAPPDATA%\Microsoft\Windows\Cursors` rồi ghi **đường dẫn tuyệt đối**
+(`C:\Users\<tên-bạn>\...`) vào registry.
+
+Nên export bằng regedit rồi import sang máy khác là **hỏng**: username khác, đường dẫn
+trỏ vào hư không, con trỏ về mặc định mà không báo lỗi gì. Script này ghi lại thành
+`%LOCALAPPDATA%\...` kiểu `REG_EXPAND_SZ`, và mang theo file `.cur` trong `cursors/`
+(2.3 MB thô, git nén còn ~56 KB).
+
+Nó cũng ghi `HKCU\Software\Microsoft\Accessibility` (`CursorType` / `CursorColor` /
+`CursorSize`) — không thì trang Settings vẫn tưởng con trỏ đang trắng mặc định, và lần
+sau đụng vào là Windows sinh đè lại bộ `.cur` trắng.
+
+### Cần đăng nhập lại mới ăn
+
+Hầu hết setting ăn ngay nhờ `SystemParametersInfo`. Hai thứ không có API tương ứng nên
+chỉ ghi registry, và `user32` đọc chúng lúc đăng nhập:
+
+- `MouseWheelRouting` — cuộn cửa sổ đang không active
+- `SmoothMouseXCurve` / `SmoothMouseYCurve` — đường cong tăng tốc
 
 ## Power & Remote Desktop
 

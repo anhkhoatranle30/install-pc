@@ -9,6 +9,7 @@ BCLicense
 
 # Backup do script sinh ra
 *.bak-*
+mouse-backup-*.reg
 
 # Log
 *.log

@@ -11,6 +11,10 @@
         .\setup-power-remote.ps1    port RDP
         .\setup-quil.ps1 -Force     thư mục cài Quil
 
+    NGOẠI LỆ: sở thích về chuột nằm ở mouse-profile.ps1, không phải file này.
+    File đó do script sinh ra - chỉnh chuột trong Settings cho vừa ý rồi chạy
+    .\setup-mouse.ps1 -Export, đừng sửa tay.
+
     File này ĐƯỢC commit (nó là sở thích, không phải bí mật).
     Key và network ID thì để ở local.settings.ps1 - file đó gitignored.
 #>
